@@ -9,7 +9,8 @@
 ; 64512 azul                     ;
 ; 58112 verde                    ;
 ; 7936 vermelho                  ;
-; todo: mais cores               ;
+; 2816 laranja gel               ;
+; 2560 laranja roupa chell       ;
 ;--------------------------------;						
 
 ;---- strings --------------------------------------
@@ -80,7 +81,7 @@ map_data:
     string "1000000000000000000000000000000000000001" ; 25
     string "1000000000000000000000000000000000000001" ; 26
     string "1000000000000000011100000000000000000001" ; 27
-    string "1000000000000000011133333333333333333111" ; 28
+    string "1000000000000000011133333333333333333331" ; 28
     string "1111111111111111111111111111111111111111" ; 29
 ;---------------------------------------------------
 
@@ -88,7 +89,7 @@ main:
 
 	; --- init ---
     ;set global variables
-    loadn r0, #33
+    loadn r0, #50
     store player_accel, r0  ;player move acceleration
 
     loadn r0, #90
@@ -170,8 +171,8 @@ draw_map:
     loadn r0, #map_data     ; r0 = memory pointer for the map data
     loadn r1, #0            ; r1 = screen position (starts at top-left, index 0)
     loadn r2, #1200         ; r2 = total tiles on a 40x30 screen
-    loadn r3, #'\0'         ; r3 = null terminator
-    loadn r4, #'.'          ; r4 = wall character in our map dat
+    loadn r3, #'.'          ; r3 = tile color
+    loadn r4, #'.'          ; r4 = wall type
     loadn r5, #'.'          ; r5 = visual character to draw
 
 draw_map_loop:
@@ -181,7 +182,8 @@ draw_map_loop:
     loadi r6, r0            ; read the current character from map data
     
     ; check for null terminator and skip if found
-    cmp r6, r3              
+    loadn r4, '\0'
+    cmp r6, r4              
     jeq skip_null           
 
     ; check for nothing ('-')
@@ -210,17 +212,19 @@ draw_map_loop:
     jmp next_tile           
 
 draw_white_wall:
-    loadn r5, #'&'
+    loadn r5, #123
     outchar r5, r1          ; print '#' at current screen position
     jmp next_tile
 
 draw_gray_wall:
-    loadn r5, #123
+    loadn r5, #124
     outchar r5, r1
     jmp next_tile
 
 draw_orange_gel:
-    loadn r5, #124
+    loadn r5, #125
+    loadn r3, #2816
+    add r5, r5, r3
     outchar r5, r1
     jmp next_tile
 
@@ -291,33 +295,64 @@ draw_player:
     push r0                  
     push r1                  
     push r2                  
-    push r4                  
+    push r4
+    push r5                  
 
-    loadn r0, #player_sprite ; r0 points to the first character
     loadn r2, #40            ; load screen width into r2
     mov r4, r7               ; copy player's position (r7) into r4 so we don't alter r7
 
     ; --- Draw Top Character ---
-    loadi r1, r0             ; pull first char from memory into r1
+    call get_char_from_facing_dir           ; get first char (127 for facing right, 130 for facing left)
+
+    loadn r5, #0             ; apply color
+    add r1, r1, r5
+
     outchar r1, r4           ; draw at current position
 
     ; --- Draw Middle Character ---
-    inc r0                   ; move memory pointer to 2nd char
+    inc r1                   ; get next char
+
+    loadn r5, #2560          ; apply color
+    add r1, r1, r5
+
     add r4, r4, r2           ; move temp position down 1 row by adding 40
-    loadi r1, r0             ; pull second char from memory into r1
     outchar r1, r4           ; draw
 
     ; --- Draw Bottom Character ---
-    inc r0                   ; move memory pointer to 3rd char
+    inc r1                   ; get next char
+
     add r4, r4, r2           ; move temp position down another row
-    loadi r1, r0             ; pull third char from memory into r1
     outchar r1, r4           ; draw 
 
+    pop r5
     pop r4                   
     pop r2                   
     pop r1                   
     pop r0                   
     rts                      
+
+get_char_from_facing_dir:
+    push r0
+    push r2
+    push r3
+
+;default: assume facing right
+    loadn r2, #0
+    loadn r3, #vel_x_dir
+    loadi r0, r3
+
+    loadn r1, #127
+    cmp r0, r2
+    jeq face_right
+
+face_left:
+    loadn r1, #130
+
+face_right:
+    pop r3
+    pop r2
+    pop r0
+    rts
 
 ;erases player in position (r7)
 erase_player:
@@ -403,7 +438,7 @@ handle_input:
     ; check if 'w' (up)
     loadn r5, #'w'          ; load 'w' into r5
     cmp r4, r5              ; compare input with 'w'
-    ceq accel_jump          ; call accel_up if equal
+    ceq accel_jump          ; call accel_jump if equal
 
     ; check if 'a' (left)
     loadn r5, #'a'
@@ -522,9 +557,8 @@ accel_left:
     loadn r4, #vel_x_mag  
     loadi r1, r4            ; r1 = current mag
 
-    loadn r2, #1            ; delta dir = 1 (left)
-    mov r3, r6              ; delta mag
-    call signed_add         ; r0,r1 = new dir,mag
+    loadn r0, #1            ; dir = 1 (left)
+    mov r1, r6              ; mag
     call clamp_mag          ; keep velocity clamped
 
     loadn r4, #vel_x_dir  
@@ -582,9 +616,8 @@ accel_right:
     loadn r4, #vel_x_mag  
     loadi r1, r4            ; r1 = current mag
 
-    loadn r2, #0            ; delta dir = 0 (right)
-    mov r3, r6              ; delta mag
-    call signed_add         ; r0,r1 = new dir,mag
+    loadn r0, #0            ; dir = 0 (right)
+    mov r1, r6              ; mag
     call clamp_mag          ; keep velocity clamped
 
     loadn r4, #vel_x_dir  
@@ -732,6 +765,10 @@ apply_friction:
     cmp r1, r4              
     jeq skip_friction       ; tile below is orange gel; no friction
 
+    loadn r4, #0             
+    cmp r1, r4               
+    jeq skip_friction       ; already at rest; no friction
+
     ;additionally, y accum must be 0 to allow friction
     loadn r0, #accum_y_mag
     loadi r1, r0
@@ -743,21 +780,16 @@ apply_friction:
     loadn r0, #vel_x_mag     
     loadi r1, r0             ; r1 = current mag
 
-    loadn r4, #0             
-    cmp r1, r4               
-    jeq skip_friction        ; already at rest
-
-    ;loadn r6, #floor_drag
-    ;loadi r5, r6             ; r5 = floor drag
-    ;cmp r1, r5
-
-    loadn r4, #2
-    div r5, r1, r4
-
-    loadn r6, #10
+    loadn r6, #10            ; if mag less than 20, go to 0 speed
     cmp r1, r6
     jle set_zero_speed
-    sub r1, r1, r5             
+
+    ;loadn r4, #2             ; divide mag by 2
+    ;div r1, r1, r4           
+
+    loadn r4, #10           ; subtract mag by 20
+    sub r1, r1, r4
+
     storei r0, r1            
 
 skip_friction:
@@ -905,8 +937,7 @@ start_movement:
     loadn r4, #vel_y_mag     
     storei r4, r1     
     
-    ;aplicar atrito
-    call apply_friction
+    
 
     ; ==========================================
     ; movimento horizontal (eixo X)
@@ -1041,6 +1072,8 @@ hit_vertical_wall:
     storei r0, r4                         
 
 skip_physics:
+;aplicar atrito
+    call apply_friction
     
     pop r6                  
     pop r5                  
