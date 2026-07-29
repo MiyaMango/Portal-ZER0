@@ -23,8 +23,10 @@ errstring : string "error string"
 teststring : string "hello world"
 teststring2 : string "test string"
 gametitle : string "Portal ZER0"
-speedstringx : string "SpdX: "
-speedstringy : string "SpdY: "
+portalstring : string "Selected color: "
+emptystring : string "      "
+bluestring : string "BLUE"
+orangestring : string "ORANGE"
 ;---------------------------------------------------
 
 ;---- sprites --------------------------------------
@@ -52,6 +54,36 @@ player_accel: var #8
 player_jump: var #8
 floor_drag: var #8
 
+;---- portal gun state ------------------------------
+portal_color: var #1         ; 0 = azul selecionado, 1 = laranja selecionado 
+
+blue_portal_active: var #1
+blue_portal_pos: var #8      ; indice de tela do tile de origem do portal (pra vertical eh esquerda, pra horizontal eh cima)
+blue_portal_orient: var #1   ; 0 = vertical, 1 = horizontal
+blue_portal_facing: var #1   ; direçao que o portal olha: 0=direita,1=esquerda,2=cima,3=baixo
+blue_portal_tile0: var #1    ; caracteres originais do mapa nas 3 celulas do portal, pra restaurar o terreno dps
+blue_portal_tile1: var #1
+blue_portal_tile2: var #1
+
+orange_portal_active: var #1
+orange_portal_pos: var #8
+orange_portal_orient: var #1
+orange_portal_facing: var #1
+orange_portal_tile0: var #1
+orange_portal_tile1: var #1
+orange_portal_tile2: var #1
+
+; variaveis pra funçao de spawnar portal
+pg_orient: var #1
+pg_facing: var #1
+pg_cellA: var #8
+pg_cellB: var #8
+pg_cellC: var #8
+pg_tileA: var #1
+pg_tileB: var #1
+pg_tileC: var #1
+;-----------------------------------------------------
+
 ;---- map data --------------------------------------
 ; '-' = do not write anything here
 ; 'X' = player spawn
@@ -61,7 +93,9 @@ floor_drag: var #8
 ; '3' = orange gel
 ; '4' = horizontal bridge
 ; '5' = vertical bridge
-; '6' = death tile (kills player on touch)
+; '6' = death slop
+; '7' = blue portal (colocado em runtime pela portal gun)
+; '8' = orange portal (colocado em runtime pela portal gun)
 ; a primeira fileira é reservada pra mostrar outras coisas do jogo
 
 map_data:
@@ -69,7 +103,7 @@ map_data:
     string "1111111111111111111111111111111111111111" ; 1
     string "1000000000000000000000000000000000000001" ; 2
     string "1000000000000000000000000000000000000001" ; 3
-    string "100X000000000000011100000000000000000001" ; 4
+    string "1000000000000000011100000000000000000001" ; 4
     string "1000000000000000011100000000000000000001" ; 5
     string "1000000000000000000000000000000000000001" ; 6
     string "1000000000000000000000000000000000000001" ; 7
@@ -89,11 +123,11 @@ map_data:
     string "1000000000000000000000000000000000000001" ; 21
     string "1000000000000000000000000000000000000001" ; 22
     string "1000000000000000000000000000000000000001" ; 23
-    string "1000000000000000000000000000000000000001" ; 24
-    string "1666600000000000000000000000000000000001" ; 25
+    string "1000000000X00000000000000000000000000001" ; 24
+    string "1000000000000000000000000000000000000001" ; 25
     string "2000000000000000000000000000000000000001" ; 26
     string "2000000224444444411100000000000000000001" ; 27
-    string "2000000220000000011163636363636363636361" ; 28
+    string "2000000220000000011133333333333333333331" ; 28
     string "2222222222222111111111111111111111111111" ; 29
 ;--------------------------------------------------- 
 
@@ -115,12 +149,12 @@ main:
     loadn r1, #0
     call print_string
 
-    loadn r0, speedstringx
+    loadn r0, portalstring
     loadn r1, #15
     call print_string
 
-    loadn r0, speedstringy
-    loadn r1, #24
+    loadn r0, bluestring
+    loadn r1, #31
     call print_string
 
 	call draw_map           ;load the map
@@ -133,13 +167,7 @@ main:
     call tick_physics       ;moves player based on current momentum, applies gravity, handles collisions, friction, etc
 
     ; --- 2. draw ---
-    loadn r0, #20           ;get player speed x
-    load r1, #vel_x_mag
-    call Imprime_Numero
-
-    loadn r0, #29            ;get player speed y
-    load r1, #vel_y_mag
-    call Imprime_Numero
+    
 
     loadn r0, #dirty        ;load dirty bit
     loadi r1, r0             
@@ -302,50 +330,6 @@ draw_map_end:
     rts                     
 ;----------------------------------------------------------------;
 
-;----------------------------------------------------------------;
-Imprime_Numero: ; (função copiada dos exemplos do simões)
-; recebe a posicao do primeiro digito no r0
-; recebe o numero a ser impresso no r1
-    push fr
-    push r4 ; posicao tela
-    push r5
-    push r6
-    push r7 ; Score atual
-    mov r4, r0 ; move a posicao inicail
-    loadn r5, #2
-    add r4, r4, r5 ; soma 2 pois serao impressos 3 digitos de tras pra frente
-    mov r7, r1 ; move o numero a ser impresso, pois ele sera modificado
-Loop_Imprime_Numero:
-    loadn r6, #10 ; div e mod por 10   
-    mod r5, r7, r6
-    div r7, r7, r6 ; divide score por 10
-    loadn r6, #48 ; ascii 0
-    add r5, r5, r6 ; soma resto no ascii zero
-    outchar r5, r4
-    dec r4 ; decrementa posicao
-    loadn r6, #0
-    cmp r7, r6 ; ve se nao eh zero
-    jne Loop_Imprime_Numero
-    loadn r5, #1
-    mov r6, r0 ; move posicao inicial
-    sub r6, r6, r5 ; subitrai 1 para criterio de aprada
-Loop_Imprime_Zero_Numero: ; completa com zero
-    cmp r4, r6
-    jeq Sair_Imprime_Numero ; se forem iguais sai
-    loadn r5, #48 ; ascii 0
-    outchar r5, r4
-    dec r4 ; decrementa posicao
-    jmp Loop_Imprime_Zero_Numero
-
-Sair_Imprime_Numero:   
-    pop r7
-    pop r6
-    pop r5
-    pop r4
-    pop fr
-    rts
-;----------------------------------------------------------------;
-
 ;draws player in position (r7)
 draw_player:
     push r0                  
@@ -410,6 +394,86 @@ face_right:
     pop r0
     rts
 
+drawplayer_forceright:
+    push r0                  
+    push r1                  
+    push r2                  
+    push r4
+    push r5                  
+
+    loadn r2, #40            ; load screen width into r2
+    mov r4, r7               ; copy player's position (r7) into r4 so we don't alter r7
+
+    ; --- Draw Top Character ---
+    loadn r1, #127           ; get first char (127 for facing right, 130 for facing left)
+
+    loadn r5, #0             ; apply color
+    add r1, r1, r5
+
+    outchar r1, r4           ; draw at current position
+
+    ; --- Draw Middle Character ---
+    inc r1                   ; get next char
+
+    loadn r5, #2560          ; apply color
+    add r1, r1, r5
+
+    add r4, r4, r2           ; move temp position down 1 row by adding 40
+    outchar r1, r4           ; draw
+
+    ; --- Draw Bottom Character ---
+    inc r1                   ; get next char
+
+    add r4, r4, r2           ; move temp position down another row
+    outchar r1, r4           ; draw 
+
+    pop r5
+    pop r4                   
+    pop r2                   
+    pop r1                   
+    pop r0                   
+    rts  
+
+drawplayer_forceleft:
+    push r0                  
+    push r1                  
+    push r2                  
+    push r4
+    push r5                  
+
+    loadn r2, #40            ; load screen width into r2
+    mov r4, r7               ; copy player's position (r7) into r4 so we don't alter r7
+
+    ; --- Draw Top Character ---
+    loadn r1, #130          ; get first char (127 for facing right, 130 for facing left)
+
+    loadn r5, #0             ; apply color
+    add r1, r1, r5
+
+    outchar r1, r4           ; draw at current position
+
+    ; --- Draw Middle Character ---
+    inc r1                   ; get next char
+
+    loadn r5, #2560          ; apply color
+    add r1, r1, r5
+
+    add r4, r4, r2           ; move temp position down 1 row by adding 40
+    outchar r1, r4           ; draw
+
+    ; --- Draw Bottom Character ---
+    inc r1                   ; get next char
+
+    add r4, r4, r2           ; move temp position down another row
+    outchar r1, r4           ; draw 
+
+    pop r5
+    pop r4                   
+    pop r2                   
+    pop r1                   
+    pop r0                   
+    rts  
+
 ;erases player in position (r7)
 erase_player:
     push r0                  
@@ -443,6 +507,7 @@ erase_player:
 print_string:
     push r4
     push r5
+    push fr
 
     loadn r4, #'\0';
 
@@ -458,6 +523,7 @@ print_string:
     	jmp print_loop
 
 	print_end:
+    pop fr
     pop r5
     pop r4
     rts
@@ -513,9 +579,34 @@ handle_input:
     cmp r4, r5
     ceq accel_right
 
-    pop r5                  
-    pop r4                  
-    rts                     
+    ; check if 'i' (portal para cima)
+    loadn r5, #'i'
+    cmp r4, r5
+    ceq shoot_portal_up
+
+    ; check if 'j' (portal para esquerda)
+    loadn r5, #'j'
+    cmp r4, r5
+    ceq shoot_portal_left
+
+    ; check if 'k' (portal para baixo)
+    loadn r5, #'k'
+    cmp r4, r5
+    ceq shoot_portal_down
+
+    ; check if 'l' (portal para direita)
+    loadn r5, #'l'
+    cmp r4, r5
+    ceq shoot_portal_right
+
+    ; check if 'p' (alterna cor do portal selecionada)
+    loadn r5, #'p'
+    cmp r4, r5
+    ceq toggle_portal_color
+
+    pop r5
+    pop r4
+    rts
 
 ;----------------------------------------------------------------;
 
@@ -847,10 +938,10 @@ apply_friction:
     cmp r1, r6
     jle set_zero_speed
 
-    ;loadn r4, #2             ; divide mag by 2
+    ;loadn r4, #2            ; divide mag by 2
     ;div r1, r1, r4           
 
-    loadn r4, #10           ; subtract mag by 20
+    loadn r4, #10            ; subtract mag by 20
     sub r1, r1, r4
 
     storei r0, r1            
@@ -874,10 +965,8 @@ set_zero_speed:
 ; checar colisao
 ; entrada: r6 -> posicao alvo
 ; saida: r5 -> 0 se livre, 1 se houver colisao
-; saida: r4 -> caractere do tile que causou a colisao (valido só se r5 == 1).
-;              deixa espaço pra quem chamou reagir diferente a tiles
-;              especificos (ex: tile da morte), sem precisar de outra
-;              funçao pra escanear os mesmos 3 tiles de novo.
+; saida: r4 -> caractere do tile que causou a colisao (se r5 == 1).
+; deixa espaço pra quem chamou reagir diferente a tiles diferentes
 check_collision:
     push r0
     push r1
@@ -942,7 +1031,7 @@ kill_player:
 
     call erase_player       ; some da tela imediatamente
 
-    ;--- espera ~3000 ciclos (essa arquitetura nao tem instruçoes de tempo) ---
+    ;--- espera 3000 ciclos ---
     loadn r4, #3000
     loadn r0, #0
 kill_wait_loop:
@@ -1051,8 +1140,6 @@ start_movement:
     storei r4, r0            
     loadn r4, #vel_y_mag     
     storei r4, r1     
-    
-    
 
     ; ==========================================
     ; movimento horizontal (eixo X)
@@ -1218,10 +1305,820 @@ skip_physics:
     pop r1                  
     pop r0                  
     rts
-
-
-
     
+;----------------------------------------------------------------;
+;                      funcoes da portal gun                     ;
+;----------------------------------------------------------------;
+
+; screen_to_map_offset: converte indice de tela (stride 40) em offset de memoria do mapa (stride 41)
+; entrada: r0 = indice de tela
+; saida:   r0 = offset de memoria dentro de map_data
+screen_to_map_offset:
+    push r1
+    push r4
+
+    loadn r4, #40
+    div r1, r0, r4          ; r1 = Y
+    mod r0, r0, r4          ; r0 = X
+    loadn r4, #41
+    mul r1, r1, r4
+    add r0, r0, r1          ; r0 = (Y*41) + X
+
+    pop r4
+    pop r1
+    rts
+
+; read_map_tile: le o caractere do mapa numa posiçao de tela
+; entrada: r0 = indice de tela
+; saida:   r0 = caractere do tile
+read_map_tile:
+    push r1
+
+    call screen_to_map_offset ; r0 = offset
+    loadn r1, #map_data
+    add r1, r1, r0
+    loadi r0, r1
+
+    pop r1
+    rts
+
+; write_map_tile: escreve um caractere no mapa numa posiçao de tela
+; entrada: r0 = indice de tela, r1 = caractere a escrever
+; preserva r0 e r1 (pra permitir chamar draw_tile_visual em seguida com os mesmos argumentos)
+write_map_tile:
+    push r0
+    push r1
+    push r2
+    push r3
+
+    mov r3, r1               ; guarda o caractere antes de r0 virar offset
+    call screen_to_map_offset ; r0 = offset
+    loadn r2, #map_data
+    add r2, r2, r0
+    storei r2, r3
+
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+; draw_tile_visual: desenha o visual um tile, numa posiçao de tela
+; entrada: r0 = indice de tela, r1 = caractere do tile
+draw_tile_visual:
+    push r0
+    push r1
+    push r2
+    push r3
+
+    loadn r2, #'0'
+    cmp r1, r2
+    jeq dtv_air
+
+    loadn r2, #'1'
+    cmp r1, r2
+    jeq dtv_white_wall
+
+    loadn r2, #'2'
+    cmp r1, r2
+    jeq dtv_gray_wall
+
+    loadn r2, #'3'
+    cmp r1, r2
+    jeq dtv_orange_gel
+
+    loadn r2, #'4'
+    cmp r1, r2
+    jeq dtv_hbridge
+
+    loadn r2, #'5'
+    cmp r1, r2
+    jeq dtv_vbridge
+
+    loadn r2, #'6'
+    cmp r1, r2
+    jeq dtv_death_tile
+
+    loadn r2, #'7'
+    cmp r1, r2
+    jeq dtv_blue_portal
+
+    loadn r2, #'8'
+    cmp r1, r2
+    jeq dtv_orange_portal
+
+dtv_air:
+    loadn r3, #' '
+    outchar r3, r0
+    jmp dtv_end
+
+dtv_white_wall:
+    loadn r3, #123
+    outchar r3, r0
+    jmp dtv_end
+
+dtv_gray_wall:
+    loadn r3, #123
+    loadn r2, #46592
+    add r3, r3, r2
+    outchar r3, r0
+    jmp dtv_end
+
+dtv_orange_gel:
+    loadn r3, #125
+    loadn r2, #2816
+    add r3, r3, r2
+    outchar r3, r0
+    jmp dtv_end
+
+dtv_hbridge:
+    loadn r3, #134
+    loadn r2, #43008
+    add r3, r3, r2
+    outchar r3, r0
+    jmp dtv_end
+
+dtv_vbridge:
+    loadn r3, #133
+    loadn r2, #43008
+    add r3, r3, r2
+    outchar r3, r0
+    jmp dtv_end
+
+dtv_death_tile:
+    loadn r3, #136
+    loadn r2, #58112
+    add r3, r3, r2
+    outchar r3, r0
+    jmp dtv_end
+
+dtv_blue_portal:
+    loadn r3, #123
+    loadn r2, #51200
+    add r3, r3, r2
+    outchar r3, r0
+    jmp dtv_end
+
+dtv_orange_portal:
+    loadn r3, #123
+    loadn r2, #3840
+    add r3, r3, r2
+    outchar r3, r0
+
+dtv_end:
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+; apply_facing_offset: soma o deslocamento de 1 passo correspondente a direçao de olhar do portal
+; usado pra ver se tem ar na frente do portal antes de criar
+; entrada: r0 = indice de tela, r1 = facing (0=direita,1=esquerda,2=cima,3=baixo)
+; saida:   r0 = indice de tela deslocado 1 passo na direçao facing
+apply_facing_offset:
+    push r1
+    push r4
+
+    loadn r4, #0
+    cmp r1, r4
+    jeq afo_right
+
+    loadn r4, #1
+    cmp r1, r4
+    jeq afo_left
+
+    loadn r4, #2
+    cmp r1, r4
+    jeq afo_up
+
+    ; facing == 3 (baixo)
+    loadn r4, #40
+    add r0, r0, r4
+    jmp afo_end
+
+afo_up:
+    loadn r4, #40
+    sub r0, r0, r4
+    jmp afo_end
+
+afo_left:
+    dec r0
+    jmp afo_end
+
+afo_right:
+    inc r0
+
+afo_end:
+    pop r4
+    pop r1
+    rts
+
+; toggle_portal_color: alterna a cor do portal selecionada (azul/laranja)
+toggle_portal_color:
+    push r0
+    push r1
+
+    ;swap portal variable
+    loadn r0, #portal_color
+    loadi r1, r0
+    loadn r0, #1
+    xor r1, r1, r0
+    loadn r0, #portal_color
+    storei r0, r1
+
+    ;swap displayed string on top
+    loadi r1, r0
+    loadn r0, #0
+    cmp r0, r1 
+
+    loadn r1, #31
+    loadn r0, emptystring
+    call print_string
+
+    jeq draw_bluestring
+
+    loadn r1, #31
+    loadn r0, orangestring
+    call print_string
+
+toggle_finish:
+    pop r1
+    pop r0
+    rts
+
+draw_bluestring:
+    loadn r1, #31
+    loadn r0, bluestring
+    call print_string
+
+    jmp toggle_finish
+
+; restore_blue_portal: restaura os 3 tiles originais sob o portal azul atual, e redesenha
+restore_blue_portal:
+    push r0
+    push r1
+    push r4
+    push r5
+
+    loadn r4, #blue_portal_orient
+    loadi r0, r4
+    loadn r4, #0
+    cmp r0, r4
+    jeq rbp_stride_vert
+
+    loadn r5, #1
+    jmp rbp_stride_done
+
+rbp_stride_vert:
+    loadn r5, #40
+
+rbp_stride_done:
+    loadn r4, #blue_portal_pos
+    loadi r0, r4
+    loadn r4, #blue_portal_tile0
+    loadi r1, r4
+    call write_map_tile
+    call draw_tile_visual
+
+    loadn r4, #blue_portal_pos
+    loadi r0, r4
+    add r0, r0, r5
+    loadn r4, #blue_portal_tile1
+    loadi r1, r4
+    call write_map_tile
+    call draw_tile_visual
+
+    loadn r4, #blue_portal_pos
+    loadi r0, r4
+    add r0, r0, r5
+    add r0, r0, r5
+    loadn r4, #blue_portal_tile2
+    loadi r1, r4
+    call write_map_tile
+    call draw_tile_visual
+
+    pop r5
+    pop r4
+    pop r1
+    pop r0
+    rts
+
+; restore_orange_portal: restaura os 3 tiles originais sob o portal laranja atual, e redesenha
+restore_orange_portal:
+    push r0
+    push r1
+    push r4
+    push r5
+
+    loadn r4, #orange_portal_orient
+    loadi r0, r4
+    loadn r4, #0
+    cmp r0, r4
+    jeq rop_stride_vert
+
+    loadn r5, #1
+    jmp rop_stride_done
+
+rop_stride_vert:
+    loadn r5, #40
+
+rop_stride_done:
+    loadn r4, #orange_portal_pos
+    loadi r0, r4
+    loadn r4, #orange_portal_tile0
+    loadi r1, r4
+    call write_map_tile
+    call draw_tile_visual
+
+    loadn r4, #orange_portal_pos
+    loadi r0, r4
+    add r0, r0, r5
+    loadn r4, #orange_portal_tile1
+    loadi r1, r4
+    call write_map_tile
+    call draw_tile_visual
+
+    loadn r4, #orange_portal_pos
+    loadi r0, r4
+    add r0, r0, r5
+    add r0, r0, r5
+    loadn r4, #orange_portal_tile2
+    loadi r1, r4
+    call write_map_tile
+    call draw_tile_visual
+
+    pop r5
+    pop r4
+    pop r1
+    pop r0
+    rts
+
+; resolve_portal_shot: valida o spawn de um portal, e cria o portal se tiver tudo ok
+; entrada: r0 = indice de tela do impacto, r1 = orientaçao (0=vertical,1=horizontal),
+;          r2 = facing (0=direita,1=esquerda,2=cima,3=baixo)
+; nao faz nada se os 3 tiles nao forem uma superficie valida ('1'/'3') com ar na frente
+resolve_portal_shot:
+    push r0
+    push r1
+    push r2
+    push r3
+    push r4
+    push r5
+    push r6
+
+    loadn r4, #pg_orient
+    storei r4, r1
+    loadn r4, #pg_facing
+    storei r4, r2
+
+    ; stride = 40 se vertical (orientaçao 0), 1 se horizontal (orientaçao 1)
+    loadn r4, #0
+    cmp r1, r4
+    jeq rps_stride_vert
+
+    loadn r5, #1
+    jmp rps_stride_done
+
+rps_stride_vert:
+    loadn r5, #40
+
+rps_stride_done:
+    ; celulas candidatas: A = impacto - stride, B = impacto, C = impacto + stride
+    sub r6, r0, r5
+    loadn r4, #pg_cellA
+    storei r4, r6
+
+    loadn r4, #pg_cellB
+    storei r4, r0
+
+    add r6, r0, r5
+    loadn r4, #pg_cellC
+    storei r4, r6
+
+    ; --- valida celula A: superficie '1'/'3' + ar na frente ---
+    loadn r4, #pg_cellA
+    loadi r0, r4
+    call read_map_tile
+    loadn r4, #'1'
+    cmp r0, r4
+    jeq rps_a_ok
+    loadn r4, #'3'
+    cmp r0, r4
+    jne rps_end
+rps_a_ok:
+    loadn r4, #pg_tileA
+    storei r4, r0
+
+    loadn r4, #pg_cellA
+    loadi r0, r4
+    loadn r4, #pg_facing
+    loadi r1, r4
+    call apply_facing_offset
+    call read_map_tile
+    loadn r4, #'0'
+    cmp r0, r4
+    jne rps_end
+
+    ; --- valida celula B ---
+    loadn r4, #pg_cellB
+    loadi r0, r4
+    call read_map_tile
+    loadn r4, #'1'
+    cmp r0, r4
+    jeq rps_b_ok
+    loadn r4, #'3'
+    cmp r0, r4
+    jne rps_end
+rps_b_ok:
+    loadn r4, #pg_tileB
+    storei r4, r0
+
+    loadn r4, #pg_cellB
+    loadi r0, r4
+    loadn r4, #pg_facing
+    loadi r1, r4
+    call apply_facing_offset
+    call read_map_tile
+    loadn r4, #'0'
+    cmp r0, r4
+    jne rps_end
+
+    ; --- valida celula C ---
+    loadn r4, #pg_cellC
+    loadi r0, r4
+    call read_map_tile
+    loadn r4, #'1'
+    cmp r0, r4
+    jeq rps_c_ok
+    loadn r4, #'3'
+    cmp r0, r4
+    jne rps_end
+rps_c_ok:
+    loadn r4, #pg_tileC
+    storei r4, r0
+
+    loadn r4, #pg_cellC
+    loadi r0, r4
+    loadn r4, #pg_facing
+    loadi r1, r4
+    call apply_facing_offset
+    call read_map_tile
+    loadn r4, #'0'
+    cmp r0, r4
+    jne rps_end
+
+    ; --- tudo valido: escolhe a cor selecionada e posiciona ---
+    loadn r4, #portal_color
+    loadi r0, r4
+    loadn r4, #0
+    cmp r0, r4
+    jeq rps_place_blue
+    jmp rps_place_orange
+
+rps_place_blue:
+    loadn r4, #blue_portal_active
+    loadi r0, r4
+    loadn r4, #0
+    cmp r0, r4
+    jeq rps_blue_place_new
+
+    call restore_blue_portal
+
+rps_blue_place_new:
+    loadn r4, #pg_cellA
+    loadi r0, r4
+    loadn r1, #'7'
+    call write_map_tile
+    call draw_tile_visual
+
+    loadn r4, #pg_cellB
+    loadi r0, r4
+    loadn r1, #'7'
+    call write_map_tile
+    call draw_tile_visual
+
+    loadn r4, #pg_cellC
+    loadi r0, r4
+    loadn r1, #'7'
+    call write_map_tile
+    call draw_tile_visual
+
+    loadn r4, #blue_portal_active
+    loadn r0, #1
+    storei r4, r0
+
+    loadn r4, #blue_portal_pos
+    loadn r5, #pg_cellA
+    loadi r0, r5
+    storei r4, r0
+
+    loadn r4, #blue_portal_orient
+    loadn r5, #pg_orient
+    loadi r0, r5
+    storei r4, r0
+
+    loadn r4, #blue_portal_facing
+    loadn r5, #pg_facing
+    loadi r0, r5
+    storei r4, r0
+
+    loadn r4, #blue_portal_tile0
+    loadn r5, #pg_tileA
+    loadi r0, r5
+    storei r4, r0
+
+    loadn r4, #blue_portal_tile1
+    loadn r5, #pg_tileB
+    loadi r0, r5
+    storei r4, r0
+
+    loadn r4, #blue_portal_tile2
+    loadn r5, #pg_tileC
+    loadi r0, r5
+    storei r4, r0
+
+    jmp rps_end
+
+rps_place_orange:
+    loadn r4, #orange_portal_active
+    loadi r0, r4
+    loadn r4, #0
+    cmp r0, r4
+    jeq rps_orange_place_new
+
+    call restore_orange_portal
+
+rps_orange_place_new:
+    loadn r4, #pg_cellA
+    loadi r0, r4
+    loadn r1, #'8'
+    call write_map_tile
+    call draw_tile_visual
+
+    loadn r4, #pg_cellB
+    loadi r0, r4
+    loadn r1, #'8'
+    call write_map_tile
+    call draw_tile_visual
+
+    loadn r4, #pg_cellC
+    loadi r0, r4
+    loadn r1, #'8'
+    call write_map_tile
+    call draw_tile_visual
+
+    loadn r4, #orange_portal_active
+    loadn r0, #1
+    storei r4, r0
+
+    loadn r4, #orange_portal_pos
+    loadn r5, #pg_cellA
+    loadi r0, r5
+    storei r4, r0
+
+    loadn r4, #orange_portal_orient
+    loadn r5, #pg_orient
+    loadi r0, r5
+    storei r4, r0
+
+    loadn r4, #orange_portal_facing
+    loadn r5, #pg_facing
+    loadi r0, r5
+    storei r4, r0
+
+    loadn r4, #orange_portal_tile0
+    loadn r5, #pg_tileA
+    loadi r0, r5
+    storei r4, r0
+
+    loadn r4, #orange_portal_tile1
+    loadn r5, #pg_tileB
+    loadi r0, r5
+    storei r4, r0
+
+    loadn r4, #orange_portal_tile2
+    loadn r5, #pg_tileC
+    loadi r0, r5
+    storei r4, r0
+
+rps_end:
+    pop r6
+    pop r5
+    pop r4
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+; shoot_portal_left: atira portal p/esquerda
+shoot_portal_left:
+    push r0
+    push r1
+    push r2
+    push r4
+    push r6
+
+    call drawplayer_forceleft
+
+    loadn r3, #138
+    mov r6, r7
+    loadn r4, #40
+    add r6, r6, r4          ; começa do meio do jogador
+
+    loadn r4, #40           ; limite de distancia
+
+spl_scan:
+
+    dec r6                  ; passo pra esquerda    
+    dec r4
+    loadn r1, #0
+    cmp r4, r1
+    jeq spl_end             ; raycast passou do limite, abortar
+
+    mov r0, r6
+    call read_map_tile
+
+    loadn r1, #'0'
+    cmp r0, r1
+    jeq spl_scan            ; ar, continua
+
+    loadn r1, #'4'
+    cmp r0, r1
+    jeq spl_scan            ; hardlight horizontal, atravessa
+
+    loadn r1, #'5'
+    cmp r0, r1
+    jeq spl_scan            ; hardlight vertical, atravessa
+
+    ; atingiu uma superficie -- tenta colocar o portal
+    mov r0, r6
+    loadn r1, #0             ; orientaçao vertical
+    loadn r2, #0             ; facing = direita
+    call resolve_portal_shot
+
+spl_end:
+    pop r6
+    pop r4
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+; shoot_portal_right: atira um portal pra direita
+shoot_portal_right:
+    push r0
+    push r1
+    push r2
+    push r4
+    push r6
+
+    call drawplayer_forceright
+
+    mov r6, r7
+    loadn r4, #40
+    add r6, r6, r4          ; começa do meio do jogador
+
+    loadn r4, #40           ; limite de distancia
+
+spr_scan:
+    inc r6                  ; passo pra direita
+    
+    dec r4
+    loadn r1, #0
+    cmp r4, r1
+    jeq spr_end             ; raycast passou do limite, abortar
+
+    mov r0, r6
+    call read_map_tile
+
+    loadn r1, #'0'
+    cmp r0, r1
+    jeq spr_scan
+
+    loadn r1, #'4'
+    cmp r0, r1
+    jeq spr_scan
+
+    loadn r1, #'5'
+    cmp r0, r1
+    jeq spr_scan
+
+    mov r0, r6
+    loadn r1, #0             ; orientaçao vertical
+    loadn r2, #1             ; facing = esquerda 
+    call resolve_portal_shot
+
+spr_end:
+    pop r6
+    pop r4
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+; shoot_portal_up: atira um portal pra cima
+shoot_portal_up:
+    push r0
+    push r1
+    push r2
+    push r4
+    push r6
+
+    mov r6, r7              ; começa na cabeça do jogador
+
+    loadn r4, #30           ; limite de distancia
+
+spu_scan:
+    loadn r1, #40
+    sub r6, r6, r1          ; passo pra cima
+    dec r4
+    loadn r1, #0
+    cmp r4, r1
+    jeq spu_end
+
+    mov r0, r6
+    call read_map_tile
+
+    loadn r1, #'0'
+    cmp r0, r1
+    jeq spu_scan
+
+    loadn r1, #'4'
+    cmp r0, r1
+    jeq spu_scan
+
+    loadn r1, #'5'
+    cmp r0, r1
+    jeq spu_scan
+
+    mov r0, r6
+    loadn r1, #1             ; orientaçao horizontal
+    loadn r2, #3             ; facing = baixo 
+    call resolve_portal_shot
+
+spu_end:
+    pop r6
+    pop r4
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+; shoot_portal_down: atira um portal pra baixo
+shoot_portal_down:
+    push r0
+    push r1
+    push r2
+    push r4
+    push r6
+
+    mov r6, r7
+    loadn r4, #80
+    add r6, r6, r4          ; começa uma nos pes do jogador
+
+    loadn r4, #30           ; limite de distancia
+
+spd_scan:
+
+    loadn r1, #40
+    add r6, r6, r1          ; passo pra baixo
+
+    dec r4
+    loadn r1, #0
+    cmp r4, r1
+    jeq spd_end
+
+    mov r0, r6
+    call read_map_tile
+
+    loadn r1, #'0'
+    cmp r0, r1
+    jeq spd_scan
+
+    loadn r1, #'4'
+    cmp r0, r1
+    jeq spd_scan
+
+    loadn r1, #'5'
+    cmp r0, r1
+    jeq spd_scan
+
+    mov r0, r6
+    loadn r1, #1             ; orientaçao horizontal
+    loadn r2, #2             ; facing = cima
+    call resolve_portal_shot
+
+spd_end:
+    pop r6
+    pop r4
+    pop r2
+    pop r1
+    pop r0
+    rts
+;----------------------------------------------------------------;
+
 ;----------------------------------------------------------------;
 ;                         outras funcoes                         ;
 ;----------------------------------------------------------------;
