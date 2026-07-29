@@ -5,12 +5,17 @@
 ;--------------------------------------------------------------;
 
 ;-------- TABELA DE CORES -------;
-; 0 branco                       ;	
-; 64512 azul                     ;
-; 58112 verde                    ;
-; 7936 vermelho                  ;
-; 2816 laranja gel               ;
-; 2560 laranja roupa chell       ;
+; 0      branco                  ;	
+; 64512  100% azul               ;
+; 58112  100% verde              ;
+; 7936   100% vermelho           ;
+; 2816   gel laranja             ;
+; 61440  gel azul                ;
+; 2560   laranja roupa chell     ;
+; 51200  portal azul             ;
+; 3840   portal laranja          ;
+; 43008  hardlight bridge        ;
+; 46592  gray tile               ;
 ;--------------------------------;						
 
 ;---- strings --------------------------------------
@@ -46,10 +51,14 @@ player_jump: var #8
 floor_drag: var #8
 
 ;---- map data --------------------------------------
-; '0' = empty
+; '-' = do not write anything here
+; 'X' = player spawn
+; '0' = air
 ; '1' = white wall
 ; '2' = gray wall
 ; '3' = orange gel
+; '4' = horizontal bridge
+; '5' = vertical bridge
 ; a primeira fileira é reservada pra mostrar outras coisas do jogo
 
 map_data:
@@ -57,19 +66,19 @@ map_data:
     string "1111111111111111111111111111111111111111" ; 1
     string "1000000000000000000000000000000000000001" ; 2
     string "1000000000000000000000000000000000000001" ; 3
-    string "1000000000000000011100000000000000000001" ; 4
+    string "100X000000000000011100000000000000000001" ; 4
     string "1000000000000000011100000000000000000001" ; 5
     string "1000000000000000000000000000000000000001" ; 6
     string "1000000000000000000000000000000000000001" ; 7
     string "1000000000000000011100000000000000000001" ; 8
-    string "1000000000000000011100000000000000000001" ; 9
-    string "1000000000000000011100000000000000000001" ; 10
-    string "1000000000000000011100000000000000000001" ; 11
+    string "1000000000000000012100000000000000000001" ; 9
+    string "1000000000000000012100000000000000000001" ; 10
+    string "1000000000000000012100000000000000000001" ; 11
     string "1000000000000000011100000000000000000001" ; 12
-    string "1000000000000000000000000000000000000001" ; 13
-    string "1000000000000000000000000000000000000001" ; 14
-    string "1000000000000000000000000000000000000001" ; 15
-    string "1000000000000000000000000000000000000001" ; 16
+    string "1000000000000000005000000000000000000001" ; 13
+    string "1000000000000000005000000000000000000001" ; 14
+    string "1000000000000000005000000000000000000001" ; 15
+    string "1000000000000000005000000000000000000001" ; 16
     string "1000000000000000011100000000000000000001" ; 17
     string "1000000000000000011100000000000000000001" ; 18
     string "1000000000000000011100000000000000000001" ; 19
@@ -79,11 +88,11 @@ map_data:
     string "1000000000000000000000000000000000000001" ; 23
     string "1000000000000000000000000000000000000001" ; 24
     string "1000000000000000000000000000000000000001" ; 25
-    string "1000000000000000000000000000000000000001" ; 26
-    string "1000000000000000011100000000000000000001" ; 27
-    string "1000000000000000011133333333333333333331" ; 28
-    string "1111111111111111111111111111111111111111" ; 29
-;---------------------------------------------------
+    string "2000000000000000000000000000000000000001" ; 26
+    string "2000000224444444411100000000000000000001" ; 27
+    string "2000000220000000011133333333333333333331" ; 28
+    string "2222222222222111111111111111111111111111" ; 29
+;--------------------------------------------------- 
 
 main:
 
@@ -112,11 +121,7 @@ main:
     call print_string
 
 	call draw_map           ;load the map
-
-    loadn r0, #5            ;set initial player coords
-    loadn r1, #5           
-    call set_player_pos    
-    call draw_player        ;draw player
+    call draw_player        ;draw the player
 
     ; game loop:
 	game_loop:
@@ -125,11 +130,11 @@ main:
     call tick_physics       ;moves player based on current momentum, applies gravity, handles collisions, friction, etc
 
     ; --- 2. draw ---
-    loadn r0, #20  ;get player speed x
+    loadn r0, #20           ;get player speed x
     load r1, #vel_x_mag
     call Imprime_Numero
 
-    loadn r0, #29  ;get player speed y
+    loadn r0, #29            ;get player speed y
     load r1, #vel_y_mag
     call Imprime_Numero
 
@@ -145,7 +150,6 @@ skip_draw:
     ; --- 3. input ---
     call handle_input       ;process player input
 
-    ; loop
     jmp game_loop           ;loop
 
 ;----------------------------------------------------------------;
@@ -191,6 +195,11 @@ draw_map_loop:
     cmp r6, r4
     jeq next_tile
 
+    ; check if it is player spawn ('X')
+    loadn r4, 'X'
+    cmp r6, r4              
+    jeq spawn_player  
+
     ; check if it is a white wall ('1')
     loadn r4, '1'
     cmp r6, r4              
@@ -204,26 +213,56 @@ draw_map_loop:
     ; check if it is orange gel ('3')
     loadn r4, '3'
     cmp r6, r4              
-    jeq draw_orange_gel        
-    
+    jeq draw_orange_gel
+
+    ; check if it is horizontal bridge ('4')
+    loadn r4, '4'
+    cmp r6, r4              
+    jeq draw_hbridge
+
+    ; check if it is vertical bridge ('5')
+    loadn r4, '5'
+    cmp r6, r4              
+    jeq draw_vbridge
+
     ; if it is not a wall, draw an empty space
     loadn r6, #' '          
-    outchar r6, r1          ; print space at current screen position
+    outchar r6, r1          
     jmp next_tile           
+
+spawn_player:
+    mov r7, r1
+    jmp next_tile
 
 draw_white_wall:
     loadn r5, #123
-    outchar r5, r1          ; print '#' at current screen position
+    outchar r5, r1          
     jmp next_tile
 
 draw_gray_wall:
-    loadn r5, #124
+    loadn r5, #123
+    loadn r3, #46592
+    add r5, r5, r3
     outchar r5, r1
     jmp next_tile
-
+    
 draw_orange_gel:
     loadn r5, #125
     loadn r3, #2816
+    add r5, r5, r3
+    outchar r5, r1
+    jmp next_tile
+
+draw_vbridge:
+    loadn r5, #133
+    loadn r3, #43008
+    add r5, r5, r3
+    outchar r5, r1
+    jmp next_tile
+
+draw_hbridge:
+    loadn r5, #134
+    loadn r3, #43008
     add r5, r5, r3
     outchar r5, r1
     jmp next_tile
@@ -414,9 +453,16 @@ print_string:
 ;entrada-> (r0,r1) como posicao (x,y)
 ;saida-> (r7) recebe o valor equivalente
 set_player_pos:
+
+    push r4
+    push r7
+
     loadn r4, #40
     mul r7, r1, r4
     add r7, r7, r0
+
+    pop r7
+    pop r4
     rts
 
 ;getar posiçao do player
