@@ -46,6 +46,8 @@ accum_y_dir: var #8     ;idem y
 accum_y_mag: var #1     ;idem y
 dirty: var #1           ;dirty bit pra dizer se precisamos redesenhar o personagem
 
+spawn_pos: var #8       ;posição inicial do player, pra respawn
+
 player_accel: var #8
 player_jump: var #8
 floor_drag: var #8
@@ -59,6 +61,7 @@ floor_drag: var #8
 ; '3' = orange gel
 ; '4' = horizontal bridge
 ; '5' = vertical bridge
+; '6' = death tile (kills player on touch)
 ; a primeira fileira é reservada pra mostrar outras coisas do jogo
 
 map_data:
@@ -87,10 +90,10 @@ map_data:
     string "1000000000000000000000000000000000000001" ; 22
     string "1000000000000000000000000000000000000001" ; 23
     string "1000000000000000000000000000000000000001" ; 24
-    string "1000000000000000000000000000000000000001" ; 25
+    string "1666600000000000000000000000000000000001" ; 25
     string "2000000000000000000000000000000000000001" ; 26
     string "2000000224444444411100000000000000000001" ; 27
-    string "2000000220000000011133333333333333333331" ; 28
+    string "2000000220000000011163636363636363636361" ; 28
     string "2222222222222111111111111111111111111111" ; 29
 ;--------------------------------------------------- 
 
@@ -222,8 +225,13 @@ draw_map_loop:
 
     ; check if it is vertical bridge ('5')
     loadn r4, '5'
-    cmp r6, r4              
+    cmp r6, r4
     jeq draw_vbridge
+
+    ; check if it is a death tile ('6')
+    loadn r4, '6'
+    cmp r6, r4
+    jeq draw_death_tile
 
     ; if it is not a wall, draw an empty space
     loadn r6, #' '          
@@ -232,6 +240,8 @@ draw_map_loop:
 
 spawn_player:
     mov r7, r1
+    loadn r4, #spawn_pos
+    storei r4, r1            ; guarda a posiçao inicial pra respawn
     jmp next_tile
 
 draw_white_wall:
@@ -263,6 +273,13 @@ draw_vbridge:
 draw_hbridge:
     loadn r5, #134
     loadn r3, #43008
+    add r5, r5, r3
+    outchar r5, r1
+    jmp next_tile
+
+draw_death_tile:
+    loadn r5, #136
+    loadn r3, #58112
     add r5, r5, r3
     outchar r5, r1
     jmp next_tile
@@ -857,60 +874,112 @@ set_zero_speed:
 ; checar colisao
 ; entrada: r6 -> posicao alvo
 ; saida: r5 -> 0 se livre, 1 se houver colisao
+; saida: r4 -> caractere do tile que causou a colisao (valido só se r5 == 1).
+;              deixa espaço pra quem chamou reagir diferente a tiles
+;              especificos (ex: tile da morte), sem precisar de outra
+;              funçao pra escanear os mesmos 3 tiles de novo.
 check_collision:
-    push r0                 
-    push r1                 
-    push r2                 
-    push r3                 
-    push r4                 
+    push r0
+    push r1
+    push r2
+    push r3
 
     loadn r5, #0            ; default: assume no collision
     loadn r0, #map_data     ; load the base address of the mao
 
     ;convert screen index to memory index
     ;r6 is the screen index (stride of 40). map it to memory (stride of 41).
-    loadn r4, #40           
+    loadn r4, #40
     div r2, r6, r4          ; r2 = Y (r6 / 40)
     mod r3, r6, r4          ; r3 = X (r6 % 40)
 
     loadn r4, #41           ; row length in memory (40 chars + '\0')
-    mul r2, r2, r4         
+    mul r2, r2, r4
     add r2, r2, r3          ; r2 = (Y * 41) + X (memory offset)
 
     add r1, r0, r2          ; r1 = map_data address + exact memory offset
-    loadn r4, #'0'          ; '0' means air (no collision)
+    loadn r0, #'0'          ; '0' means air (no collision)
 
     ;check top character
     loadi r2, r1            ; pull the map tile from memory
-    cmp r2, r4              ; compare the tile to '0'
-    jne collision_found     ; if it isn't '0', we hit a wall
+    cmp r2, r0              ; compare the tile to '0'
+    jne collision_found     ; if it isn't '0', we hit a wall (r2 = the tile)
 
     ;check middle character
     loadn r3, #41           ; load memory stride of 41
     add r1, r1, r3          ; advance map address by exactly 1 row in memory
     loadi r2, r1            ; pull the middle tile
-    cmp r2, r4              
-    jne collision_found     
+    cmp r2, r0
+    jne collision_found
 
     ;check bottom character
     add r1, r1, r3          ; advance map address by another row in memory
     loadi r2, r1            ; pull the bottom tile
-    cmp r2, r4              
-    jne collision_found     
+    cmp r2, r0
+    jne collision_found
 
     jmp end_collision       ; if we reach here, all 3 tiles are air
 
 collision_found:
     loadn r5, #1            ; set the output flag to 1 (collision happened)
+    mov r4, r2               ; report which tile caused it
 
 end_collision:
-    pop r4                  
-    pop r3                  
-    pop r2                  
-    pop r1                  
-    pop r0                  
-    rts                      
-      
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+;----------------------------------------------------------------;
+
+; kill_player: mata o jogador (some por um tempo, depois faz respawn no spawn inicial)
+; entrada: nenhuma
+kill_player:
+    push r0
+    push r1
+    push r4
+
+    call erase_player       ; some da tela imediatamente
+
+    ;--- espera ~3000 ciclos (essa arquitetura nao tem instruçoes de tempo) ---
+    loadn r4, #3000
+    loadn r0, #0
+kill_wait_loop:
+    nop
+    dec r4
+    cmp r4, r0
+    jne kill_wait_loop
+
+    ;--- respawn na posiçao inicial, com velocidade zerada ---
+    loadn r0, #spawn_pos
+    loadi r7, r0            ; r7 = posiçao de spawn
+
+    loadn r1, #0
+    loadn r0, #vel_x_dir
+    storei r0, r1
+    loadn r0, #vel_x_mag
+    storei r0, r1
+    loadn r0, #vel_y_dir
+    storei r0, r1
+    loadn r0, #vel_y_mag
+    storei r0, r1
+    loadn r0, #accum_x_dir
+    storei r0, r1
+    loadn r0, #accum_x_mag
+    storei r0, r1
+    loadn r0, #accum_y_dir
+    storei r0, r1
+    loadn r0, #accum_y_mag
+    storei r0, r1
+
+    call draw_player        ; desenha o personagem na posiçao de spawn
+
+    pop r4
+    pop r1
+    pop r0
+    rts
+
 ;----------------------------------------------------------------;
 
 ;------------------------------------------------------------------------------------;
@@ -1032,26 +1101,36 @@ accum_x_move_right:
     inc r6                    
 
 accum_x_check_collision:
-    call check_collision      
-    loadn r4, #1               
-    cmp r5, r4                 
-    jeq hit_horizontal_wall    
+    call check_collision        ; r5 = blocked?, r4 = tile that blocked us (if r5==1)
+    loadn r3, #1
+    cmp r5, r3
+    jne accum_x_move            ; free -> step succeeds
 
+    loadn r3, #'6'               ; blocked -- was it specifically the death tile?
+    cmp r4, r3
+    jeq accum_x_death
+    jmp hit_horizontal_wall
+
+accum_x_move:
     call mark_dirty              ; erase old sprite + flag this tick as dirty
     mov r7, r6                   ; step succeeds
     loadn r4, #100               ; movement threshold
     sub r1, r1, r4               ; consume the threshold, keep the remainder
-    loadn r4, #accum_x_mag        
-    storei r4, r1                  
+    loadn r4, #accum_x_mag
+    storei r4, r1
     jmp test_vertical
+
+accum_x_death:
+    call kill_player            ; erase, wait, respawn (also resets velocity/accum)
+    jmp skip_physics            ; state was just reset, no point simulating the rest of this tick
 
 hit_horizontal_wall:
     ;blocked: kill horizontal momentum and its accumulator
-    loadn r4, #0               
-    loadn r0, #vel_x_mag        
-    storei r0, r4                
-    loadn r0, #accum_x_mag       
-    storei r0, r4                 
+    loadn r4, #0
+    loadn r0, #vel_x_mag
+    storei r0, r4
+    loadn r0, #accum_x_mag
+    storei r0, r4
 
 test_vertical:
     ; ==========================================
@@ -1096,17 +1175,27 @@ accum_y_move_down:
     add r6, r6, r4                                
 
 accum_y_check_collision:
-    call check_collision                          
-    loadn r4, #1                                   
-    cmp r5, r4                                      
-    jeq hit_vertical_wall                            
+    call check_collision        ; r5 = blocked?, r4 = tile that blocked us (if r5==1)
+    loadn r3, #1
+    cmp r5, r3
+    jne accum_y_move            ; free -> step succeeds
 
+    loadn r3, #'6'               ; blocked -- was it specifically the death tile?
+    cmp r4, r3
+    jeq accum_y_death
+    jmp hit_vertical_wall
+
+accum_y_move:
     call mark_dirty                     ; erase old sprite + flag this tick as dirty
     mov r7, r6                          ; step succeeds
     loadn r4, #100                      ; movement threshold
     sub r1, r1, r4                      ; consume the threshold, keep remainder
-    loadn r4, #accum_y_mag                                 
-    storei r4, r1                                           
+    loadn r4, #accum_y_mag
+    storei r4, r1
+    jmp skip_physics
+
+accum_y_death:
+    call kill_player             ; erase, wait, respawn (also resets velocity/accum)
     jmp skip_physics
 
 hit_vertical_wall:
