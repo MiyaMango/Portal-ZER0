@@ -87,6 +87,21 @@ pg_tileC: var #1
 warp_entry_facing: var #1
 warp_exit_pos: var #8
 warp_exit_facing: var #1
+
+; contador de ticks do jogo, incrementado no inicio de cada game_loop
+game_tick: var #8
+
+; variaveis do raycast visual do tiro da portal gun
+trail_active: var #1    ; 1 se ha um raycast desenhado esperando ser apagado no proximo tick
+trail_dir: var #1       ; 0=esquerda,1=direita,2=cima,3=baixo
+trail_start: var #8     ; primeira celula (passavel) percorrida pelo raycast
+trail_end: var #8       ; ultima celula (passavel) percorrida pelo raycast
+trail_tick: var #8      ; valor de game_tick no momento em que o raycast foi desenhado
+
+; cooldowns de input: contadores individuais que começam em 10 quando a acao e usada,
+; e decrescem 1 por game tick ate chegar em 0 (quando a acao volta a ser permitida)
+shoot_cooldown: var #8         ; cooldown compartilhado entre as 4 direçoes do tiro
+color_switch_cooldown: var #8  ; cooldown da troca de cor do portal selecionado
 ;-----------------------------------------------------
 
 ;---- map data --------------------------------------
@@ -124,15 +139,15 @@ map_data:
     string "1000000000000000011100000000000000000001" ; 17
     string "1000000000000000011100000000000000000001" ; 18
     string "1000000000000000011100000000000000000001" ; 19
-    string "1000000000000000000000000000000000000001" ; 20
-    string "1000000000000000000000000000000000000001" ; 21
-    string "1000000000000000000000000000000000000001" ; 22
-    string "1000000000000000000000000000000000000001" ; 23
-    string "1000000000000000000000000000000000000001" ; 24
-    string "1111100000000000000000000000000000000001" ; 25
-    string "1111100000000000000000000000000000000001" ; 26
-    string "1111100000000000001110000000000000000001" ; 27
-    string "1111100000000000001113333333333333333331" ; 28
+    string "1000000000000000005000000000000000000001" ; 20
+    string "1000000000000000005000000000000000000001" ; 21
+    string "1000000000000000005000000000000000000001" ; 22
+    string "1000000000000000005000000000000000000001" ; 23
+    string "1000000000000000005000000000000000000001" ; 24
+    string "1111100000000000005000000000000000000001" ; 25
+    string "1111100000000000005000000000000000000001" ; 26
+    string "1111100000000000011110000000000000000001" ; 27
+    string "1111100000000000011113333333333333333331" ; 28
     string "1111111111111111111111111111111111111111" ; 29
 ;--------------------------------------------------- 
 
@@ -168,18 +183,56 @@ main:
     ; game loop:
 	game_loop:
 
+    ; --- 0. tick counter / apaga o trail do tiro anterior, se for de um tick que ja passou ---
+    loadn r0, #game_tick
+    loadi r1, r0
+    inc r1
+    storei r0, r1
+
+    loadn r0, #trail_active
+    loadi r1, r0
+    loadn r2, #0
+    cmp r1, r2
+    jeq skip_trail_erase
+
+    loadn r0, #trail_tick
+    loadi r1, r0
+    loadn r0, #game_tick
+    loadi r2, r0
+    cmp r1, r2
+    jeq skip_trail_erase    ; trail ainda e do tick atual, nao apaga ainda
+
+    call erase_raycast_trail
+
+skip_trail_erase:
+
+    ; decrementa os cooldowns de input, um game tick por vez (nunca abaixo de 0)
+    loadn r0, #shoot_cooldown
+    loadi r1, r0
+    loadn r2, #0
+    cmp r1, r2
+    jeq skip_shoot_cooldown_dec
+
+    dec r1
+    storei r0, r1
+
+skip_shoot_cooldown_dec:
+
+    loadn r0, #color_switch_cooldown
+    loadi r1, r0
+    loadn r2, #0
+    cmp r1, r2
+    jeq skip_color_cooldown_dec
+
+    dec r1
+    storei r0, r1
+
+skip_color_cooldown_dec:
+
 	; --- 1. tick physics ---
     call tick_physics       ;moves player based on current momentum, applies gravity, handles collisions, friction, etc
 
     ; --- 2. draw ---
-    loadn r0, #43          ;get player speed x
-    load r1, #vel_x_mag
-    call Imprime_Numero
-
-    loadn r0, #48          ;get player speed y
-    load r1, #vel_y_mag
-    call Imprime_Numero
-
     loadn r0, #dirty        ;load dirty bit
     loadi r1, r0             
     loadn r0, #0             
@@ -197,49 +250,6 @@ skip_draw:
 ;----------------------------------------------------------------;
 ;                      funcoes de graficos                       ;
 ;----------------------------------------------------------------;
-
-Imprime_Numero: ; (função copiada dos exemplos do simões)
-; recebe a posicao do primeiro digito no r0
-; recebe o numero a ser impresso no r1
-    push fr
-    push r4 ; posicao tela
-    push r5
-    push r6
-    push r7 ; Score atual
-    mov r4, r0 ; move a posicao inicail
-    loadn r5, #2
-    add r4, r4, r5 ; soma 2 pois serao impressos 3 digitos de tras pra frente
-    mov r7, r1 ; move o numero a ser impresso, pois ele sera modificado
-Loop_Imprime_Numero:
-    loadn r6, #10 ; div e mod por 10   
-    mod r5, r7, r6
-    div r7, r7, r6 ; divide score por 10
-    loadn r6, #48 ; ascii 0
-    add r5, r5, r6 ; soma resto no ascii zero
-    outchar r5, r4
-    dec r4 ; decrementa posicao
-    loadn r6, #0
-    cmp r7, r6 ; ve se nao eh zero
-    jne Loop_Imprime_Numero
-    loadn r5, #1
-    mov r6, r0 ; move posicao inicial
-    sub r6, r6, r5 ; subitrai 1 para criterio de aprada
-Loop_Imprime_Zero_Numero: ; completa com zero
-    cmp r4, r6
-    jeq Sair_Imprime_Numero ; se forem iguais sai
-    loadn r5, #48 ; ascii 0
-    outchar r5, r4
-    dec r4 ; decrementa posicao
-    jmp Loop_Imprime_Zero_Numero
-
-Sair_Imprime_Numero:   
-    pop r7
-    pop r6
-    pop r5
-    pop r4
-    pop fr
-    rts
-
 ;------------------- lembretes aleatorios -----------------------;
 ;resoluçao da tela: (40 largura(x) x 30 altura(y))               ;
 ;origem: canto superior esquerdo                                 ;
@@ -612,11 +622,12 @@ get_player_pos:
 
 ;le WASD e chama a funcao de movimento equivalente
 handle_input:
-    push r4                 
-    push r5                 
+    push r0
+    push r4
+    push r5
 
     inchar r4               ; read keyboard input into r4
-    
+
     ; check if 'w' (up)
     loadn r5, #'w'          ; load 'w' into r5
     cmp r4, r5              ; compare input with 'w'
@@ -632,31 +643,76 @@ handle_input:
     cmp r4, r5
     ceq accel_right
 
-    ; check if 'i' (portal para cima)
+    ; check if 'i' (portal para cima) -- sujeito ao cooldown compartilhado de tiro
     loadn r5, #'i'
     cmp r4, r5
-    ceq shoot_portal_up
+    jne hi_check_j
 
-    ; check if 'j' (portal para esquerda)
+    loadn r0, #shoot_cooldown
+    call try_use_cooldown
+    loadn r0, #1
+    cmp r5, r0
+    jne hi_check_j
+
+    call shoot_portal_up
+
+hi_check_j:
+    ; check if 'j' (portal para esquerda) -- sujeito ao cooldown compartilhado de tiro
     loadn r5, #'j'
     cmp r4, r5
-    ceq shoot_portal_left
+    jne hi_check_k
 
-    ; check if 'k' (portal para baixo)
+    loadn r0, #shoot_cooldown
+    call try_use_cooldown
+    loadn r0, #1
+    cmp r5, r0
+    jne hi_check_k
+
+    call shoot_portal_left
+
+hi_check_k:
+    ; check if 'k' (portal para baixo) -- sujeito ao cooldown compartilhado de tiro
     loadn r5, #'k'
     cmp r4, r5
-    ceq shoot_portal_down
+    jne hi_check_l
 
-    ; check if 'l' (portal para direita)
+    loadn r0, #shoot_cooldown
+    call try_use_cooldown
+    loadn r0, #1
+    cmp r5, r0
+    jne hi_check_l
+
+    call shoot_portal_down
+
+hi_check_l:
+    ; check if 'l' (portal para direita) -- sujeito ao cooldown compartilhado de tiro
     loadn r5, #'l'
     cmp r4, r5
-    ceq shoot_portal_right
+    jne hi_check_p
 
-    ; check if 'p' (alterna cor do portal selecionada)
+    loadn r0, #shoot_cooldown
+    call try_use_cooldown
+    loadn r0, #1
+    cmp r5, r0
+    jne hi_check_p
+
+    call shoot_portal_right
+
+hi_check_p:
+    ; check if 'p' (alterna cor do portal selecionada) -- sujeito ao seu proprio cooldown
     loadn r5, #'p'
     cmp r4, r5
-    ceq toggle_portal_color
+    jne hi_check_f
 
+    loadn r0, #color_switch_cooldown
+    call try_use_cooldown
+    loadn r0, #1
+    cmp r5, r0
+    jne hi_check_f
+
+    call toggle_portal_color
+
+hi_check_f:
     ; check if 'f' (remove os dois portais, caso o jogador fique preso)
     loadn r5, #'f'
     cmp r4, r5
@@ -664,6 +720,7 @@ handle_input:
 
     pop r5
     pop r4
+    pop r0
     rts
 
 ;----------------------------------------------------------------;
@@ -1739,6 +1796,39 @@ draw_bluestring:
 
     jmp toggle_finish
 
+;----------------------------------------------------------------;
+
+; try_use_cooldown: verifica se um cooldown (contador que decresce a cada game tick)
+; esta liberado; se estiver (contador == 0), reinicia ele pra 10 e permite a acao.
+; entrada: r0 = endereço da variavel de cooldown
+; saida:   r5 = 1 se a acao e permitida (cooldown reiniciado), 0 se ainda esta em cooldown
+try_use_cooldown:
+    push r0
+    push r1
+    push r2
+
+    loadi r1, r0             ; r1 = valor atual do cooldown
+    loadn r2, #0
+    cmp r1, r2
+    jne tuc_block            ; cooldown != 0 -> ainda bloqueado
+
+    loadn r1, #10
+    storei r0, r1            ; reinicia o cooldown
+
+    loadn r5, #1
+    jmp tuc_end
+
+tuc_block:
+    loadn r5, #0
+
+tuc_end:
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+;----------------------------------------------------------------;
+
 ; restore_blue_portal: restaura os 3 tiles originais sob o portal azul atual, e redesenha
 restore_blue_portal:
     push r0
@@ -2357,55 +2447,257 @@ rps_end:
     pop r0
     rts
 
+; draw_raycast_trail: desenha o raycast visual de um tiro de portal gun, e guarda
+; os dados necessarios pra apagar ele no proximo tick
+; entrada: r0 = celula inicial, r1 = celula final, r2 = direçao (0=esquerda,1=direita,2=cima,3=baixo)
+draw_raycast_trail:
+    push r0
+    push r1
+    push r2
+    push r3
+    push r4
+    push r5
+
+    ; guarda os parametros, pra poder apagar o raycast no proximo tick
+    loadn r4, #trail_start
+    storei r4, r0
+    loadn r4, #trail_end
+    storei r4, r1
+    loadn r4, #trail_dir
+    storei r4, r2
+
+    loadn r4, #trail_active
+    loadn r3, #1
+    storei r4, r3
+
+    loadn r4, #game_tick
+    loadi r3, r4
+    loadn r4, #trail_tick
+    storei r4, r3
+
+    ; decide o caractere: horizontal (0/1) = '-', vertical (2/3) = '|'
+    loadn r4, #2
+    cmp r2, r4
+    jgr drt_vertical_char
+    jeq drt_vertical_char
+
+    loadn r3, #138
+    jmp drt_have_char
+
+drt_vertical_char:
+    loadn r3, #137
+
+drt_have_char:
+    ; adiciona a cor do portal atualmente selecionado (azul ou laranja)
+    loadn r4, #portal_color
+    loadi r5, r4              ; r5 = portal_color (0=azul,1=laranja)
+
+    loadn r4, #0
+    cmp r5, r4
+    jeq drt_color_blue
+
+    loadn r4, #3840           ; cor do portal laranja
+    jmp drt_color_done
+
+drt_color_blue:
+    loadn r4, #51200          ; cor do portal azul
+
+drt_color_done:
+    add r3, r3, r4
+
+drt_loop:
+    outchar r3, r0
+
+    cmp r0, r1
+    jeq drt_end             ; ja desenhamos a celula final
+
+    loadn r4, #0
+    cmp r2, r4
+    jeq drt_step_left
+    loadn r4, #1
+    cmp r2, r4
+    jeq drt_step_right
+    loadn r4, #2
+    cmp r2, r4
+    jeq drt_step_up
+
+    ; direçao == 3 (baixo)
+    loadn r4, #40
+    add r0, r0, r4
+    jmp drt_loop
+
+drt_step_left:
+    dec r0
+    jmp drt_loop
+
+drt_step_right:
+    inc r0
+    jmp drt_loop
+
+drt_step_up:
+    loadn r4, #40
+    sub r0, r0, r4
+    jmp drt_loop
+
+drt_end:
+    pop r5
+    pop r4
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+;----------------------------------------------------------------;
+
+; erase_raycast_trail: apaga o raycast desenhado por draw_raycast_trail,
+; restaurando o tile de verdade em cada celula percorrida
+erase_raycast_trail:
+    push r0
+    push r1
+    push r2
+    push r3
+    push r4
+
+    loadn r4, #trail_start
+    loadi r0, r4            ; r0 = celula atual (inicio)
+    loadn r4, #trail_end
+    loadi r2, r4            ; r2 = celula final
+    loadn r4, #trail_dir
+    loadi r3, r4            ; r3 = direçao
+
+ert_loop:
+    mov r4, r0              ; guarda a celula (read_map_tile vai sobrescrever r0)
+    call read_map_tile      ; r0 = caractere real do mapa nessa celula
+    mov r1, r0
+    mov r0, r4
+    call draw_tile_visual   ; redesenha o tile de verdade, apagando o raycast
+
+    cmp r0, r2
+    jeq ert_end
+
+    loadn r4, #0
+    cmp r3, r4
+    jeq ert_step_left
+    loadn r4, #1
+    cmp r3, r4
+    jeq ert_step_right
+    loadn r4, #2
+    cmp r3, r4
+    jeq ert_step_up
+
+    ; direçao == 3 (baixo)
+    loadn r4, #40
+    add r0, r0, r4
+    jmp ert_loop
+
+ert_step_left:
+    dec r0
+    jmp ert_loop
+
+ert_step_right:
+    inc r0
+    jmp ert_loop
+
+ert_step_up:
+    loadn r4, #40
+    sub r0, r0, r4
+    jmp ert_loop
+
+ert_end:
+    loadn r4, #trail_active
+    loadn r0, #0
+    storei r4, r0
+
+    pop r4
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+;----------------------------------------------------------------;
+
 ; shoot_portal_left: atira portal p/esquerda
 shoot_portal_left:
     push r0
     push r1
     push r2
+    push r3
     push r4
+    push r5
     push r6
 
     call drawplayer_forceleft
 
-    loadn r3, #138
     mov r6, r7
     loadn r4, #40
     add r6, r6, r4          ; começa do meio do jogador
 
     loadn r4, #40           ; limite de distancia
+    loadn r2, #0            ; ainda nao achamos nenhuma celula passavel pro raycast
 
 spl_scan:
 
-    dec r6                  ; passo pra esquerda    
+    dec r6                  ; passo pra esquerda
     dec r4
     loadn r1, #0
     cmp r4, r1
-    jeq spl_end             ; raycast passou do limite, abortar
+    jeq spl_finish          ; raycast passou do limite, sem impacto
 
     mov r0, r6
     call read_map_tile
 
     loadn r1, #'0'
     cmp r0, r1
-    jeq spl_scan            ; ar, continua
+    jeq spl_mark_passable   ; ar, continua
 
     loadn r1, #'4'
     cmp r0, r1
-    jeq spl_scan            ; hardlight horizontal, atravessa
+    jeq spl_mark_passable   ; hardlight horizontal, atravessa
 
     loadn r1, #'5'
     cmp r0, r1
-    jeq spl_scan            ; hardlight vertical, atravessa
+    jeq spl_mark_passable   ; hardlight vertical, atravessa
 
     ; atingiu uma superficie -- tenta colocar o portal
+    mov r4, r2               ; guarda a flag de raycast achado (contador de distancia ja nao importa)
     mov r0, r6
     loadn r1, #0             ; orientaçao vertical
     loadn r2, #0             ; facing = direita
     call resolve_portal_shot
+    mov r2, r4                ; restaura a flag
+    jmp spl_finish
+
+spl_mark_passable:
+    ; r6 e uma celula passavel -- registra os limites do raycast visual
+    loadn r1, #0
+    cmp r2, r1
+    jne spl_have_start
+
+    mov r3, r6                ; primeira celula passavel
+    loadn r2, #1
+
+spl_have_start:
+    mov r5, r6                ; ultima celula passavel (ate agora)
+    jmp spl_scan
+
+spl_finish:
+    ; desenha o raycast do tiro, se alguma celula foi percorrida
+    loadn r1, #0
+    cmp r2, r1
+    jeq spl_end
+
+    mov r0, r3                 ; inicio
+    mov r1, r5                 ; fim
+    loadn r2, #0               ; direçao = esquerda (horizontal, char '-')
+    call draw_raycast_trail
 
 spl_end:
     pop r6
+    pop r5
     pop r4
+    pop r3
     pop r2
     pop r1
     pop r0
@@ -2416,7 +2708,9 @@ shoot_portal_right:
     push r0
     push r1
     push r2
+    push r3
     push r4
+    push r5
     push r6
 
     call drawplayer_forceright
@@ -2426,38 +2720,69 @@ shoot_portal_right:
     add r6, r6, r4          ; começa do meio do jogador
 
     loadn r4, #40           ; limite de distancia
+    loadn r2, #0            ; ainda nao achamos nenhuma celula passavel pro raycast
 
 spr_scan:
     inc r6                  ; passo pra direita
-    
+
     dec r4
     loadn r1, #0
     cmp r4, r1
-    jeq spr_end             ; raycast passou do limite, abortar
+    jeq spr_finish          ; raycast passou do limite, sem impacto
 
     mov r0, r6
     call read_map_tile
 
     loadn r1, #'0'
     cmp r0, r1
-    jeq spr_scan
+    jeq spr_mark_passable
 
     loadn r1, #'4'
     cmp r0, r1
-    jeq spr_scan
+    jeq spr_mark_passable
 
     loadn r1, #'5'
     cmp r0, r1
-    jeq spr_scan
+    jeq spr_mark_passable
 
+    ; atingiu uma superficie -- tenta colocar o portal
+    mov r4, r2               ; guarda a flag de raycast achado (contador de distancia ja nao importa)
     mov r0, r6
     loadn r1, #0             ; orientaçao vertical
-    loadn r2, #1             ; facing = esquerda 
+    loadn r2, #1             ; facing = esquerda
     call resolve_portal_shot
+    mov r2, r4                ; restaura a flag
+    jmp spr_finish
+
+spr_mark_passable:
+    ; r6 e uma celula passavel -- registra os limites do raycast visual
+    loadn r1, #0
+    cmp r2, r1
+    jne spr_have_start
+
+    mov r3, r6                ; primeira celula passavel
+    loadn r2, #1
+
+spr_have_start:
+    mov r5, r6                ; ultima celula passavel (ate agora)
+    jmp spr_scan
+
+spr_finish:
+    ; desenha o raycast do tiro, se alguma celula foi percorrida
+    loadn r1, #0
+    cmp r2, r1
+    jeq spr_end
+
+    mov r0, r3                 ; inicio
+    mov r1, r5                 ; fim
+    loadn r2, #1               ; direçao = direita (horizontal, char '-')
+    call draw_raycast_trail
 
 spr_end:
     pop r6
+    pop r5
     pop r4
+    pop r3
     pop r2
     pop r1
     pop r0
@@ -2468,12 +2793,15 @@ shoot_portal_up:
     push r0
     push r1
     push r2
+    push r3
     push r4
+    push r5
     push r6
 
     mov r6, r7              ; começa na cabeça do jogador
 
     loadn r4, #30           ; limite de distancia
+    loadn r2, #0            ; ainda nao achamos nenhuma celula passavel pro raycast
 
 spu_scan:
     loadn r1, #40
@@ -2481,31 +2809,61 @@ spu_scan:
     dec r4
     loadn r1, #0
     cmp r4, r1
-    jeq spu_end
+    jeq spu_finish          ; raycast passou do limite, sem impacto
 
     mov r0, r6
     call read_map_tile
 
     loadn r1, #'0'
     cmp r0, r1
-    jeq spu_scan
+    jeq spu_mark_passable
 
     loadn r1, #'4'
     cmp r0, r1
-    jeq spu_scan
+    jeq spu_mark_passable
 
     loadn r1, #'5'
     cmp r0, r1
-    jeq spu_scan
+    jeq spu_mark_passable
 
+    ; atingiu uma superficie -- tenta colocar o portal
+    mov r4, r2               ; guarda a flag de raycast achado (contador de distancia ja nao importa)
     mov r0, r6
     loadn r1, #1             ; orientaçao horizontal
-    loadn r2, #3             ; facing = baixo 
+    loadn r2, #3             ; facing = baixo
     call resolve_portal_shot
+    mov r2, r4                ; restaura a flag
+    jmp spu_finish
+
+spu_mark_passable:
+    ; r6 e uma celula passavel -- registra os limites do raycast visual
+    loadn r1, #0
+    cmp r2, r1
+    jne spu_have_start
+
+    mov r3, r6                ; primeira celula passavel
+    loadn r2, #1
+
+spu_have_start:
+    mov r5, r6                ; ultima celula passavel (ate agora)
+    jmp spu_scan
+
+spu_finish:
+    ; desenha o raycast do tiro, se alguma celula foi percorrida
+    loadn r1, #0
+    cmp r2, r1
+    jeq spu_end
+
+    mov r0, r3                 ; inicio
+    mov r1, r5                 ; fim
+    loadn r2, #2               ; direçao = cima (vertical, char '|')
+    call draw_raycast_trail
 
 spu_end:
     pop r6
+    pop r5
     pop r4
+    pop r3
     pop r2
     pop r1
     pop r0
@@ -2516,7 +2874,9 @@ shoot_portal_down:
     push r0
     push r1
     push r2
+    push r3
     push r4
+    push r5
     push r6
 
     mov r6, r7
@@ -2524,6 +2884,7 @@ shoot_portal_down:
     add r6, r6, r4          ; começa uma nos pes do jogador
 
     loadn r4, #30           ; limite de distancia
+    loadn r2, #0            ; ainda nao achamos nenhuma celula passavel pro raycast
 
 spd_scan:
 
@@ -2533,31 +2894,61 @@ spd_scan:
     dec r4
     loadn r1, #0
     cmp r4, r1
-    jeq spd_end
+    jeq spd_finish          ; raycast passou do limite, sem impacto
 
     mov r0, r6
     call read_map_tile
 
     loadn r1, #'0'
     cmp r0, r1
-    jeq spd_scan
+    jeq spd_mark_passable
 
     loadn r1, #'4'
     cmp r0, r1
-    jeq spd_scan
+    jeq spd_mark_passable
 
     loadn r1, #'5'
     cmp r0, r1
-    jeq spd_scan
+    jeq spd_mark_passable
 
+    ; atingiu uma superficie -- tenta colocar o portal
+    mov r4, r2               ; guarda a flag de raycast achado (contador de distancia ja nao importa)
     mov r0, r6
     loadn r1, #1             ; orientaçao horizontal
     loadn r2, #2             ; facing = cima
     call resolve_portal_shot
+    mov r2, r4                ; restaura a flag
+    jmp spd_finish
+
+spd_mark_passable:
+    ; r6 e uma celula passavel -- registra os limites do raycast visual
+    loadn r1, #0
+    cmp r2, r1
+    jne spd_have_start
+
+    mov r3, r6                ; primeira celula passavel
+    loadn r2, #1
+
+spd_have_start:
+    mov r5, r6                ; ultima celula passavel (ate agora)
+    jmp spd_scan
+
+spd_finish:
+    ; desenha o raycast do tiro, se alguma celula foi percorrida
+    loadn r1, #0
+    cmp r2, r1
+    jeq spd_end
+
+    mov r0, r3                 ; inicio
+    mov r1, r5                 ; fim
+    loadn r2, #3               ; direçao = baixo (vertical, char '|')
+    call draw_raycast_trail
 
 spd_end:
     pop r6
+    pop r5
     pop r4
+    pop r3
     pop r2
     pop r1
     pop r0
