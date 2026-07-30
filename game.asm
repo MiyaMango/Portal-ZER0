@@ -82,6 +82,11 @@ pg_cellC: var #8
 pg_tileA: var #1
 pg_tileB: var #1
 pg_tileC: var #1
+
+; variaveis pra funçao de warp de portal
+warp_entry_facing: var #1
+warp_exit_pos: var #8
+warp_exit_facing: var #1
 ;-----------------------------------------------------
 
 ;---- map data --------------------------------------
@@ -102,7 +107,7 @@ map_data:
     string "----------------------------------------" ; 0
     string "1111111111111111111111111111111111111111" ; 1
     string "1000000000000000000000000000000000000001" ; 2
-    string "1000000000000000000000000000000000000001" ; 3
+    string "100000X000000000000000000000000000000001" ; 3
     string "1000000000000000011100000000000000000001" ; 4
     string "1000000000000000011100000000000000000001" ; 5
     string "1000000000000000000000000000000000000001" ; 6
@@ -123,22 +128,22 @@ map_data:
     string "1000000000000000000000000000000000000001" ; 21
     string "1000000000000000000000000000000000000001" ; 22
     string "1000000000000000000000000000000000000001" ; 23
-    string "1000000000X00000000000000000000000000001" ; 24
-    string "1000000000000000000000000000000000000001" ; 25
-    string "2000000000000000000000000000000000000001" ; 26
-    string "2000000224444444411100000000000000000001" ; 27
-    string "2000000220000000011133333333333333333331" ; 28
-    string "2222222222222111111111111111111111111111" ; 29
+    string "1000000000000000000000000000000000000001" ; 24
+    string "1111100000000000000000000000000000000001" ; 25
+    string "1111100000000000000000000000000000000001" ; 26
+    string "1111100000000000001110000000000000000001" ; 27
+    string "1111100000000000001113333333333333333331" ; 28
+    string "1111111111111111111111111111111111111111" ; 29
 ;--------------------------------------------------- 
 
 main:
 
 	; --- init ---
     ;set global variables
-    loadn r0, #50
+    loadn r0, #40
     store player_accel, r0  ;player move acceleration
 
-    loadn r0, #90
+    loadn r0, #80
     store player_jump, r0   ;player jump acceleration
 
     loadn r0, #10
@@ -167,7 +172,13 @@ main:
     call tick_physics       ;moves player based on current momentum, applies gravity, handles collisions, friction, etc
 
     ; --- 2. draw ---
-    
+    loadn r0, #43          ;get player speed x
+    load r1, #vel_x_mag
+    call Imprime_Numero
+
+    loadn r0, #48          ;get player speed y
+    load r1, #vel_y_mag
+    call Imprime_Numero
 
     loadn r0, #dirty        ;load dirty bit
     loadi r1, r0             
@@ -186,6 +197,48 @@ skip_draw:
 ;----------------------------------------------------------------;
 ;                      funcoes de graficos                       ;
 ;----------------------------------------------------------------;
+
+Imprime_Numero: ; (função copiada dos exemplos do simões)
+; recebe a posicao do primeiro digito no r0
+; recebe o numero a ser impresso no r1
+    push fr
+    push r4 ; posicao tela
+    push r5
+    push r6
+    push r7 ; Score atual
+    mov r4, r0 ; move a posicao inicail
+    loadn r5, #2
+    add r4, r4, r5 ; soma 2 pois serao impressos 3 digitos de tras pra frente
+    mov r7, r1 ; move o numero a ser impresso, pois ele sera modificado
+Loop_Imprime_Numero:
+    loadn r6, #10 ; div e mod por 10   
+    mod r5, r7, r6
+    div r7, r7, r6 ; divide score por 10
+    loadn r6, #48 ; ascii 0
+    add r5, r5, r6 ; soma resto no ascii zero
+    outchar r5, r4
+    dec r4 ; decrementa posicao
+    loadn r6, #0
+    cmp r7, r6 ; ve se nao eh zero
+    jne Loop_Imprime_Numero
+    loadn r5, #1
+    mov r6, r0 ; move posicao inicial
+    sub r6, r6, r5 ; subitrai 1 para criterio de aprada
+Loop_Imprime_Zero_Numero: ; completa com zero
+    cmp r4, r6
+    jeq Sair_Imprime_Numero ; se forem iguais sai
+    loadn r5, #48 ; ascii 0
+    outchar r5, r4
+    dec r4 ; decrementa posicao
+    jmp Loop_Imprime_Zero_Numero
+
+Sair_Imprime_Numero:   
+    pop r7
+    pop r6
+    pop r5
+    pop r4
+    pop fr
+    rts
 
 ;------------------- lembretes aleatorios -----------------------;
 ;resoluçao da tela: (40 largura(x) x 30 altura(y))               ;
@@ -604,6 +657,11 @@ handle_input:
     cmp r4, r5
     ceq toggle_portal_color
 
+    ; check if 'f' (remove os dois portais, caso o jogador fique preso)
+    loadn r5, #'f'
+    cmp r4, r5
+    ceq remove_portals
+
     pop r5
     pop r4
     rts
@@ -704,12 +762,15 @@ accel_left:
 
     loadn r4, #'3'          
     cmp r1, r4              ; check if the tile below is '3'
-    ceq double_accel        ; if it is, double acceleration power
+    ceq boost_accel         ; if it is, boost acceleration power
 
     loadn r4, #vel_x_dir  
     loadi r0, r4            ; r0 = current dir
     loadn r4, #vel_x_mag  
     loadi r1, r4            ; r1 = current mag
+
+    cmp r1, r6
+    jgr skip_accel          ;make sure the player can't slow themselves down by accelerating
 
     loadn r0, #1            ; dir = 1 (left)
     mov r1, r6              ; mag
@@ -763,17 +824,20 @@ accel_right:
 
     loadn r4, #'3'          
     cmp r1, r4              ; check if the tile below is '3'
-    ceq double_accel        ; if it is, double acceleration power
+    ceq boost_accel         ; if it is, boost acceleration power
 
     loadn r4, #vel_x_dir  
     loadi r0, r4            ; r0 = current dir
     loadn r4, #vel_x_mag  
     loadi r1, r4            ; r1 = current mag
 
+    cmp r1, r6
+    jgr skip_accel          ;make sure the player can't slow themselves down by accelerating
+
     loadn r0, #0            ; dir = 0 (right)
     mov r1, r6              ; mag
     call clamp_mag          ; keep velocity clamped
-
+    
     loadn r4, #vel_x_dir  
     storei r4, r0          
     loadn r4, #vel_x_mag  
@@ -798,11 +862,10 @@ halve_accel:
     pop r4
     rts
 
-double_accel:
+boost_accel:
     push r4
 
-    loadn r4, #2
-    mul r6, r6, r4
+    loadn r6, #100
 
     pop r4
     rts
@@ -928,20 +991,17 @@ apply_friction:
     loadi r1, r0
     loadn r2, #0
     cmp r1, r2
-    jeq skip_friction
+    jne skip_friction
 
     ;decay vel_x_mag
     loadn r0, #vel_x_mag     
     loadi r1, r0             ; r1 = current mag
 
-    loadn r6, #10            ; if mag less than 20, go to 0 speed
+    loadn r6, #10            ; if mag less than 10, go to 0 speed
     cmp r1, r6
     jle set_zero_speed
 
-    ;loadn r4, #2            ; divide mag by 2
-    ;div r1, r1, r4           
-
-    loadn r4, #10            ; subtract mag by 20
+    loadn r4, #10            ; subtract mag by 10
     sub r1, r1, r4
 
     storei r0, r1            
@@ -961,6 +1021,81 @@ set_zero_speed:
     storei r0, r1
     jmp skip_friction
 ;----------------------------------------------------------------;
+
+; apply_gravity: acelera o personagem pra baixo quando ele está no ar ou em um portal
+apply_gravity:
+    push r0                 
+    push r1                 
+    push r2                 
+    push r3                 
+    push r4
+    push r5                 
+    push r6                
+
+    ;check if standing on floor
+    loadn r4, #120          
+    add r6, r7, r4          ; r6 = screen position below player
+
+    loadn r4, #40           
+    div r2, r6, r4          ; r2 = Y
+    mod r3, r6, r4          ; r3 = X
+
+    loadn r4, #41           ; row length in memory (40 chars + '\0')
+    mul r2, r2, r4          
+    add r2, r2, r3          ; exact memory offset
+
+    loadn r0, #map_data     
+    add r0, r0, r2          
+    loadi r1, r0             ; tile below the player
+
+    loadn r4, #'0'          
+    cmp r1, r4              
+    jeq do_gravity           ; tile below is air; do gravity
+
+    loadn r4, #'7'          
+    cmp r1, r4              
+    jeq do_gravity      
+    loadn r4, #'8'          
+    cmp r1, r4              
+    jeq do_gravity           ; tile below is portal; do gravity
+
+    ;additionally, if y accum != 0 (not perfectly settled on the floor), gravity still applies
+    loadn r0, #accum_y_mag
+    loadi r1, r0
+    loadn r2, #0
+    cmp r1, r2
+    jne do_gravity
+
+    jmp skip_gravity
+do_gravity:
+
+    ;aplicar gravidade
+    loadn r4, #vel_y_dir     
+    loadi r0, r4             ; r0 = current dir
+    loadn r4, #vel_y_mag     
+    loadi r1, r4             ; r1 = current mag
+
+    loadn r2, #0             ; delta dir = 0 (down)
+    loadn r3, #10            ; delta mag = 10 (gravity strength per tick)
+    call signed_add          ; r0,r1 = new dir,mag
+    call clamp_mag           ; keep velocity clamped
+
+    loadn r4, #vel_y_dir     
+    storei r4, r0            
+    loadn r4, #vel_y_mag     
+    storei r4, r1            
+
+skip_gravity:
+    pop r6
+    pop r5                  
+    pop r4                  
+    pop r3                  
+    pop r2                  
+    pop r1                  
+    pop r0                  
+    rts                     
+;----------------------------------------------------------------;
+
 
 ; checar colisao
 ; entrada: r6 -> posicao alvo
@@ -1121,25 +1256,19 @@ tick_physics:
     cmp r3, r4              
     jeq start_movement      ; estamos no ar, precisa simular fisica
 
+    loadn r4, #'8'          
+    cmp r3, r4              
+    jeq start_movement  
+    loadn r4, #'7'          
+    cmp r3, r4              
+    jeq start_movement      ; estamos em um portal, precisa simular fisica
+
     jmp skip_physics        ; no chao e sem velocidade, n precisa simular fisica
 
 start_movement:
 
     ;aplicar gravidade
-    loadn r4, #vel_y_dir     
-    loadi r0, r4             ; r0 = current dir
-    loadn r4, #vel_y_mag     
-    loadi r1, r4             ; r1 = current mag
-
-    loadn r2, #0             ; delta dir = 0 (down)
-    loadn r3, #10            ; delta mag = 10 (gravity strength per tick)
-    call signed_add          ; r0,r1 = new dir,mag
-    call clamp_mag         ; keep velocity clamped
-
-    loadn r4, #vel_y_dir     
-    storei r4, r0            
-    loadn r4, #vel_y_mag     
-    storei r4, r1     
+    call apply_gravity
 
     ; ==========================================
     ; movimento horizontal (eixo X)
@@ -1196,7 +1325,35 @@ accum_x_check_collision:
     loadn r3, #'6'               ; blocked -- was it specifically the death tile?
     cmp r4, r3
     jeq accum_x_death
+
+    loadn r3, #'7'               ; blue portal?
+    cmp r4, r3
+    jeq accum_x_portal_blue
+
+    loadn r3, #'8'               ; orange portal?
+    cmp r4, r3
+    jeq accum_x_portal_orange
+
     jmp hit_horizontal_wall
+
+accum_x_portal_blue:
+    loadn r0, #0
+    call attempt_portal_warp
+    loadn r3, #1
+    cmp r5, r3
+    jeq accum_x_warp_done
+    jmp hit_horizontal_wall      ; portal laranja nao existe -> trata como parede normal
+
+accum_x_portal_orange:
+    loadn r0, #1
+    call attempt_portal_warp
+    loadn r3, #1
+    cmp r5, r3
+    jeq accum_x_warp_done
+    jmp hit_horizontal_wall      ; portal azul nao existe -> trata como parede normal
+
+accum_x_warp_done:
+    jmp skip_physics             ; posiçao ja mudou completamente, nao processa o resto do tick
 
 accum_x_move:
     call mark_dirty              ; erase old sprite + flag this tick as dirty
@@ -1270,7 +1427,35 @@ accum_y_check_collision:
     loadn r3, #'6'               ; blocked -- was it specifically the death tile?
     cmp r4, r3
     jeq accum_y_death
+
+    loadn r3, #'7'               ; blue portal?
+    cmp r4, r3
+    jeq accum_y_portal_blue
+
+    loadn r3, #'8'               ; orange portal?
+    cmp r4, r3
+    jeq accum_y_portal_orange
+
     jmp hit_vertical_wall
+
+accum_y_portal_blue:
+    loadn r0, #0
+    call attempt_portal_warp
+    loadn r3, #1
+    cmp r5, r3
+    jeq accum_y_warp_done
+    jmp hit_vertical_wall        ; portal laranja nao existe -> trata como parede normal
+
+accum_y_portal_orange:
+    loadn r0, #1
+    call attempt_portal_warp
+    loadn r3, #1
+    cmp r5, r3
+    jeq accum_y_warp_done
+    jmp hit_vertical_wall        ; portal azul nao existe -> trata como parede normal
+
+accum_y_warp_done:
+    jmp skip_physics             ; posiçao ja mudou completamente, nao processa o resto do tick
 
 accum_y_move:
     call mark_dirty                     ; erase old sprite + flag this tick as dirty
@@ -1653,6 +1838,266 @@ rop_stride_done:
     pop r1
     pop r0
     rts
+
+; remove_portals: restaura o terreno original sob os dois portais (os que existirem)
+; e desativa eles. tecla de socorro pra caso o jogador fique preso.
+remove_portals:
+    push r0
+    push r4
+
+    loadn r4, #blue_portal_active
+    loadi r0, r4
+    loadn r4, #0
+    cmp r0, r4
+    jeq rp_check_orange
+
+    call restore_blue_portal
+
+    loadn r4, #blue_portal_active
+    loadn r0, #0
+    storei r4, r0
+
+rp_check_orange:
+    loadn r4, #orange_portal_active
+    loadi r0, r4
+    loadn r4, #0
+    cmp r0, r4
+    jeq rp_end
+
+    call restore_orange_portal
+
+    loadn r4, #orange_portal_active
+    loadn r0, #0
+    storei r4, r0
+
+rp_end:
+    pop r4
+    pop r0
+    rts
+
+;----------------------------------------------------------------;
+
+; attempt_portal_warp: se o outro portal existir, teleporta o jogador pra ele e
+; transforma a velocidade de acordo com o facing dos dois portais.
+; entrada: r0 = qual portal foi colidido (0 = azul, 1 = laranja)
+; saida:   r5 = 1 se o warp aconteceu (r7 e as velocidades ja foram atualizados),
+;               0 se o outro portal nao existe (quem chamou deve tratar como parede normal)
+attempt_portal_warp:
+    push r0
+    push r1
+    push r2
+    push r3
+    push r4
+    push r6
+
+    loadn r1, #0
+    cmp r0, r1
+    jeq apw_entry_blue
+    jmp apw_entry_orange
+
+apw_entry_blue:
+    loadn r4, #orange_portal_active
+    loadi r1, r4
+    loadn r4, #0
+    cmp r1, r4
+    jeq apw_no_warp          ; portal laranja nao existe -> sem warp
+
+    loadn r4, #blue_portal_facing
+    loadi r1, r4
+    loadn r4, #warp_entry_facing
+    storei r4, r1
+
+    loadn r4, #orange_portal_pos
+    loadi r1, r4
+    loadn r4, #warp_exit_pos
+    storei r4, r1
+
+    loadn r4, #orange_portal_facing
+    loadi r1, r4
+    loadn r4, #warp_exit_facing
+    storei r4, r1
+
+    jmp apw_body
+
+apw_entry_orange:
+    loadn r4, #blue_portal_active
+    loadi r1, r4
+    loadn r4, #0
+    cmp r1, r4
+    jeq apw_no_warp          ; portal azul nao existe -> sem warp
+
+    loadn r4, #orange_portal_facing
+    loadi r1, r4
+    loadn r4, #warp_entry_facing
+    storei r4, r1
+
+    loadn r4, #blue_portal_pos
+    loadi r1, r4
+    loadn r4, #warp_exit_pos
+    storei r4, r1
+
+    loadn r4, #blue_portal_facing
+    loadi r1, r4
+    loadn r4, #warp_exit_facing
+    storei r4, r1
+
+apw_body:
+    ; --- le a magnitude normal e a direçao/magnitude tangencial de entrada ---
+    ; (0=direita,1=esquerda -> eixo normal X, tangencial Y)
+    ; (2=cima,3=baixo       -> eixo normal Y, tangencial X)
+    loadn r4, #warp_entry_facing
+    loadi r1, r4
+
+    loadn r4, #2
+    cmp r1, r4
+    jgr apw_entry_yaxis
+    jeq apw_entry_yaxis
+
+    loadn r4, #vel_x_mag
+    loadi r2, r4              ; r2 = magnitude normal de entrada
+    loadn r4, #vel_y_dir
+    loadi r3, r4              ; r3 = direçao tangencial de entrada
+    loadn r4, #vel_y_mag
+    loadi r6, r4              ; r6 = magnitude tangencial de entrada
+    jmp apw_have_entry
+
+apw_entry_yaxis:
+    loadn r4, #vel_y_mag
+    loadi r2, r4
+    loadn r4, #vel_x_dir
+    loadi r3, r4
+    loadn r4, #vel_x_mag
+    loadi r6, r4
+
+apw_have_entry:
+    ; --- despacha pelo facing de saida: seta o eixo normal de saida (polaridade propria +
+    ; magnitude normal de entrada) e o eixo tangencial de saida (copia direta da entrada) ---
+    loadn r4, #warp_exit_facing
+    loadi r0, r4
+
+    loadn r4, #0
+    cmp r0, r4
+    jeq apw_exit_right
+    loadn r4, #1
+    cmp r0, r4
+    jeq apw_exit_left
+    loadn r4, #2
+    cmp r0, r4
+    jeq apw_exit_up
+    jmp apw_exit_down
+
+apw_exit_right:
+    loadn r1, #0
+    loadn r4, #vel_x_dir
+    storei r4, r1
+    loadn r4, #vel_x_mag
+    storei r4, r2
+    loadn r4, #vel_y_dir
+    storei r4, r3
+    loadn r4, #vel_y_mag
+    storei r4, r6
+    jmp apw_place
+
+apw_exit_left:
+    loadn r1, #1
+    loadn r4, #vel_x_dir
+    storei r4, r1
+    loadn r4, #vel_x_mag
+    storei r4, r2
+    loadn r4, #vel_y_dir
+    storei r4, r3
+    loadn r4, #vel_y_mag
+    storei r4, r6
+    jmp apw_place
+
+apw_exit_up:
+    loadn r1, #1
+    loadn r4, #vel_y_dir
+    storei r4, r1
+    loadn r4, #vel_y_mag
+    storei r4, r2
+    loadn r4, #vel_x_dir
+    storei r4, r3
+    loadn r4, #vel_x_mag
+    storei r4, r6
+    jmp apw_place
+
+apw_exit_down:
+    loadn r1, #0
+    loadn r4, #vel_y_dir
+    storei r4, r1
+    loadn r4, #vel_y_mag
+    storei r4, r2
+    loadn r4, #vel_x_dir
+    storei r4, r3
+    loadn r4, #vel_x_mag
+    storei r4, r6
+
+apw_place:
+    ; --- zera os acumuladores (mesmo padrao de kill_player/hit_*_wall) ---
+    loadn r4, #0
+    loadn r1, #accum_x_dir
+    storei r1, r4
+    loadn r1, #accum_x_mag
+    storei r1, r4
+    loadn r1, #accum_y_dir
+    storei r1, r4
+    loadn r1, #accum_y_mag
+    storei r1, r4
+
+    ; --- calcula a nova posiçao ---
+    ; portal vertical (facing 0/1): ancora na celula do topo (cellA)
+    ; portal horizontal (facing 2/3): ancora na celula central (cellB)
+    loadn r4, #warp_exit_pos
+    loadi r0, r4               ; r0 = exit_pos (cellA)
+
+    loadn r4, #warp_exit_facing
+    loadi r1, r4               ; r1 = exit_facing
+
+    loadn r4, #2
+    cmp r1, r4
+    jgr apw_anchor_center
+    jeq apw_anchor_center
+    jmp apw_anchor_done         ; facing 0/1 -> mantem cellA como ancora
+
+apw_anchor_center:
+    inc r0                      ; facing 2/3 -> avança pra cellB (celula central)
+
+apw_anchor_done:
+    loadn r4, #2
+    cmp r1, r4
+    jeq apw_place_up
+
+    call apply_facing_offset   ; direita/esquerda/baixo: 1 celula pra fora da superficie
+    jmp apw_place_done
+
+apw_place_up:
+    ; portal de chao: a cabeça precisa ficar 1 linha acima do portal E as pernas
+    ; (r7+80) tambem precisam ficar fora dele, entao sobe 3 linhas no total
+    ; (1 pra clarear o portal + 2 pra levar as pernas junto)
+    loadn r4, #120
+    sub r0, r0, r4
+
+apw_place_done:
+    call mark_dirty            ; apaga o sprite na posiçao antiga
+    mov r7, r0                 ; efetiva o warp
+
+    loadn r5, #1
+    jmp apw_end
+
+apw_no_warp:
+    loadn r5, #0
+
+apw_end:
+    pop r6
+    pop r4
+    pop r3
+    pop r2
+    pop r1
+    pop r0
+    rts
+
+;----------------------------------------------------------------;
 
 ; resolve_portal_shot: valida o spawn de um portal, e cria o portal se tiver tudo ok
 ; entrada: r0 = indice de tela do impacto, r1 = orientaçao (0=vertical,1=horizontal),
