@@ -29,36 +29,31 @@ bluestring : string "BLUE"
 orangestring : string "ORANGE"
 ;---------------------------------------------------
 
-;---- sprites --------------------------------------
-player_sprite: string "o+^"
-blank_sprite: string " "
-;---------------------------------------------------
-
 ;---- physics variables ----------------------------
 ; como a arquitetura não tem numeros negativos, usamos uma variavel pra sinal e uma pra magnitude
 ; X: 0 = direita, 1 = esquerda. 
 ; Y: 0 = baixo, 1 = cima.
-vel_x_dir: var #8       ;velocidade em x
+vel_x_dir: var #1       ;velocidade em x
 vel_x_mag: var #1       ;direçao da velocidade
-vel_y_dir: var #8       ;idem y 
+vel_y_dir: var #1       ;idem y 
 vel_y_mag: var #1       ;idem y
-accum_x_dir: var #8     ;acumulador de movimento em x
+accum_x_dir: var #1     ;acumulador de movimento em x
 accum_x_mag: var #1     ;dir. do acumulador
-accum_y_dir: var #8     ;idem y
+accum_y_dir: var #1     ;idem y
 accum_y_mag: var #1     ;idem y
 dirty: var #1           ;dirty bit pra dizer se precisamos redesenhar o personagem
 
-spawn_pos: var #8       ;posição inicial do player, pra respawn
+spawn_pos: var #2       ;posição inicial do player, pra respawn
 
-player_accel: var #8
-player_jump: var #8
-floor_drag: var #8
+player_accel: var #1
+player_jump: var #1
+floor_drag: var #1
 
 ;---- portal gun state ------------------------------
 portal_color: var #1         ; 0 = azul selecionado, 1 = laranja selecionado 
 
 blue_portal_active: var #1
-blue_portal_pos: var #8      ; indice de tela do tile de origem do portal (pra vertical eh esquerda, pra horizontal eh cima)
+blue_portal_pos: var #2      ; indice de tela do tile de origem do portal (pra vertical eh esquerda, pra horizontal eh cima)
 blue_portal_orient: var #1   ; 0 = vertical, 1 = horizontal
 blue_portal_facing: var #1   ; direçao que o portal olha: 0=direita,1=esquerda,2=cima,3=baixo
 blue_portal_tile0: var #1    ; caracteres originais do mapa nas 3 celulas do portal, pra restaurar o terreno dps
@@ -66,7 +61,7 @@ blue_portal_tile1: var #1
 blue_portal_tile2: var #1
 
 orange_portal_active: var #1
-orange_portal_pos: var #8
+orange_portal_pos: var #2
 orange_portal_orient: var #1
 orange_portal_facing: var #1
 orange_portal_tile0: var #1
@@ -76,32 +71,29 @@ orange_portal_tile2: var #1
 ; variaveis pra funçao de spawnar portal
 pg_orient: var #1
 pg_facing: var #1
-pg_cellA: var #8
-pg_cellB: var #8
-pg_cellC: var #8
+pg_cellA: var #2
+pg_cellB: var #2
+pg_cellC: var #2
 pg_tileA: var #1
 pg_tileB: var #1
 pg_tileC: var #1
 
 ; variaveis pra funçao de warp de portal
 warp_entry_facing: var #1
-warp_exit_pos: var #8
+warp_exit_pos: var #2
 warp_exit_facing: var #1
 
-; contador de ticks do jogo, incrementado no inicio de cada game_loop
-game_tick: var #8
-
 ; variaveis do raycast visual do tiro da portal gun
-trail_active: var #1    ; 1 se ha um raycast desenhado esperando ser apagado no proximo tick
+trail_active: var #1    ; 1 se ha um raycast desenhado esperando ser apagado
 trail_dir: var #1       ; 0=esquerda,1=direita,2=cima,3=baixo
-trail_start: var #8     ; primeira celula (passavel) percorrida pelo raycast
-trail_end: var #8       ; ultima celula (passavel) percorrida pelo raycast
-trail_tick: var #8      ; valor de game_tick no momento em que o raycast foi desenhado
+trail_start: var #2     ; primeira celula (passavel) percorrida pelo raycast
+trail_end: var #2       ; ultima celula (passavel) percorrida pelo raycast
+trail_timer: var #2     ; game ticks restantes ate o raycast ser apagado
 
 ; cooldowns de input: contadores individuais que começam em 10 quando a acao e usada,
 ; e decrescem 1 por game tick ate chegar em 0 (quando a acao volta a ser permitida)
-shoot_cooldown: var #8         ; cooldown compartilhado entre as 4 direçoes do tiro
-color_switch_cooldown: var #8  ; cooldown da troca de cor do portal selecionado
+shoot_cooldown: var #2         ; cooldown compartilhado entre as 4 direçoes do tiro
+color_switch_cooldown: var #2  ; cooldown da troca de cor do portal selecionado
 ;-----------------------------------------------------
 
 ;---- map data --------------------------------------
@@ -167,14 +159,17 @@ main:
     ;print some strings
     loadn r0, gametitle
     loadn r1, #0
+    loadn r2, #0
     call print_string
 
     loadn r0, portalstring
     loadn r1, #15
+    loadn r2, #0
     call print_string
 
     loadn r0, bluestring
     loadn r1, #31
+    loadn r2, #51200
     call print_string
 
 	call draw_map           ;load the map
@@ -183,30 +178,27 @@ main:
     ; game loop:
 	game_loop:
 
-    ; --- 0. tick counter / apaga o trail do tiro anterior, se for de um tick que ja passou ---
-    loadn r0, #game_tick
-    loadi r1, r0
-    inc r1
-    storei r0, r1
-
+    ; --- handle timer countdowns + erasing trail ---
     loadn r0, #trail_active
     loadi r1, r0
     loadn r2, #0
     cmp r1, r2
     jeq skip_trail_erase
 
-    loadn r0, #trail_tick
+    loadn r0, #trail_timer
     loadi r1, r0
-    loadn r0, #game_tick
-    loadi r2, r0
+    dec r1
+    storei r0, r1
+
+    loadn r2, #0
     cmp r1, r2
-    jeq skip_trail_erase    ; trail ainda e do tick atual, nao apaga ainda
+    jne skip_trail_erase    ; timer ainda nao chegou a 0
 
     call erase_raycast_trail
 
 skip_trail_erase:
 
-    ; decrementa os cooldowns de input, um game tick por vez (nunca abaixo de 0)
+    ; decrementa os cooldowns de input
     loadn r0, #shoot_cooldown
     loadi r1, r0
     loadn r2, #0
@@ -544,12 +536,11 @@ erase_player:
     push r2                  
     push r4                  
 
-    loadn r0, #blank_sprite  ; r0 now points to the blank space
+    loadn r1, #" "  ; r0 now points to the blank space
     loadn r2, #40            
     mov r4, r7               ; start erasing at the player's position
 
-    ; --- Erase Top ---
-    loadi r1, r0             
+    ; --- Erase Top ---        
     outchar r1, r4           
 
     ; --- Erase Middle ---
@@ -566,7 +557,7 @@ erase_player:
     pop r0                   
     rts                      
 
-;printa string em (r0) na posicao (r1)
+;printa string em (r0) na posicao (r1) com cor (r2)
 print_string:
     push r4
     push r5
@@ -578,7 +569,8 @@ print_string:
     	loadi r5, r0
     	cmp r5, r4          
     	jeq print_end ;parar se chegou no \0
-   
+
+        add r5, r5, r2; add cor
     	outchar r5, r1; printa 1 char
 
     	inc r1; incrementa o cursor
@@ -1782,6 +1774,7 @@ toggle_portal_color:
 
     loadn r1, #31
     loadn r0, orangestring
+    loadn r2, #3840
     call print_string
 
 toggle_finish:
@@ -1792,6 +1785,7 @@ toggle_finish:
 draw_bluestring:
     loadn r1, #31
     loadn r0, bluestring
+    loadn r2, #51200
     call print_string
 
     jmp toggle_finish
@@ -2470,12 +2464,11 @@ draw_raycast_trail:
     loadn r3, #1
     storei r4, r3
 
-    loadn r4, #game_tick
-    loadi r3, r4
-    loadn r4, #trail_tick
+    loadn r4, #trail_timer
+    loadn r3, #1
     storei r4, r3
 
-    ; decide o caractere: horizontal (0/1) = '-', vertical (2/3) = '|'
+    ; decide o caractere
     loadn r4, #2
     cmp r2, r4
     jgr drt_vertical_char
@@ -2690,7 +2683,7 @@ spl_finish:
 
     mov r0, r3                 ; inicio
     mov r1, r5                 ; fim
-    loadn r2, #0               ; direçao = esquerda (horizontal, char '-')
+    loadn r2, #0               ; direçao = esquerda
     call draw_raycast_trail
 
 spl_end:
@@ -2775,7 +2768,7 @@ spr_finish:
 
     mov r0, r3                 ; inicio
     mov r1, r5                 ; fim
-    loadn r2, #1               ; direçao = direita (horizontal, char '-')
+    loadn r2, #1               ; direçao = direita
     call draw_raycast_trail
 
 spr_end:
@@ -2856,7 +2849,7 @@ spu_finish:
 
     mov r0, r3                 ; inicio
     mov r1, r5                 ; fim
-    loadn r2, #2               ; direçao = cima (vertical, char '|')
+    loadn r2, #2               ; direçao = cima
     call draw_raycast_trail
 
 spu_end:
@@ -2941,7 +2934,7 @@ spd_finish:
 
     mov r0, r3                 ; inicio
     mov r1, r5                 ; fim
-    loadn r2, #3               ; direçao = baixo (vertical, char '|')
+    loadn r2, #3               ; direçao = baixo 
     call draw_raycast_trail
 
 spd_end:
