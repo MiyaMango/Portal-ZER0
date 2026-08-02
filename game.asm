@@ -16,6 +16,9 @@
 ; 3840   portal laranja          ;
 ; 43008  hardlight bridge        ;
 ; 46592  gray tile               ;
+; 7168   rosa choque             ;
+; 1536   glados yellow           ;
+; 8192   almost white            ;
 ;--------------------------------;						
 
 ;---- strings --------------------------------------
@@ -94,11 +97,14 @@ trail_timer: var #2     ; game ticks restantes ate o raycast ser apagado
 ; e decrescem 1 por game tick ate chegar em 0 (quando a acao volta a ser permitida)
 shoot_cooldown: var #2         ; cooldown compartilhado entre as 4 direçoes do tiro
 color_switch_cooldown: var #2  ; cooldown da troca de cor do portal selecionado
+
+; flag que guarda se o nível foi concluído a cada game tick
+win_flag: var #1
 ;-----------------------------------------------------
 
 ;---- map data --------------------------------------
 ; '-' = do not write anything here
-; 'X' = player spawn
+; '%' = player spawn
 ; '0' = air
 ; '1' = white wall
 ; '2' = gray wall
@@ -108,39 +114,137 @@ color_switch_cooldown: var #2  ; cooldown da troca de cor do portal selecionado
 ; '6' = death slop
 ; '7' = blue portal (colocado em runtime pela portal gun)
 ; '8' = orange portal (colocado em runtime pela portal gun)
+; '9' = tile de vitória (avança pro proximo nivel quando encostado)
 ; a primeira fileira é reservada pra mostrar outras coisas do jogo
 
+map_ptr: var #1
+
 map_data:
+    ;level 1
     string "----------------------------------------" ; 0
-    string "1111111111111111111111111111111111111111" ; 1
-    string "1000000000000000000000000000000000000001" ; 2
-    string "100000X000000000000000000000000000000001" ; 3
-    string "1000000000000000011100000000000000000001" ; 4
-    string "1000000000000000011100000000000000000001" ; 5
-    string "1000000000000000000000000000000000000001" ; 6
-    string "1000000000000000000000000000000000000001" ; 7
-    string "1000000000000000011100000000000000000001" ; 8
-    string "1000000000000000012100000000000000000001" ; 9
-    string "1000000000000000012100000000000000000001" ; 10
-    string "1000000000000000012100000000000000000001" ; 11
-    string "1000000000000000011100000000000000000001" ; 12
-    string "1000000000000000005000000000000000000001" ; 13
-    string "1000000000000000005000000000000000000001" ; 14
-    string "1000000000000000005000000000000000000001" ; 15
-    string "1000000000000000005000000000000000000001" ; 16
-    string "1000000000000000011100000000000000000001" ; 17
-    string "1000000000000000011100000000000000000001" ; 18
-    string "1000000000000000011100000000000000000001" ; 19
-    string "1000000000000000005000000000000000000001" ; 20
-    string "1000000000000000005000000000000000000001" ; 21
-    string "1000000000000000005000000000000000000001" ; 22
-    string "1000000000000000005000000000000000000001" ; 23
-    string "1000000000000000005000000000000000000001" ; 24
-    string "1111100000000000005000000000000000000001" ; 25
-    string "1111100000000000005000000000000000000001" ; 26
-    string "1111100000000000011110000000000000000001" ; 27
-    string "1111100000000000011113333333333333333331" ; 28
-    string "1111111111111111111111111111111111111111" ; 29
+    string "0000000000000000000000000000000000000000" ; 1
+    string "00&Hello and, again, welcome to the00000" ; 2
+    string "0Aperture Science Computer Aided00000000" ; 3
+    string "00Enrichment center.00000000000000000000" ; 4
+    string "0000000000000000000000000000000000000000" ; 5
+    string "2222222222222222222222222222222222200000" ; 6
+    string "2000000000000000000000000000000000200000" ; 7
+    string "2001444444441000000000000000000000200000" ; 8
+    string "2005000000005000000000000000000000200000" ; 9
+    string "2005000000005000000000000000000000222222" ; 10
+    string "20051000000050%0000000000000000000000009" ; 11
+    string "2005100000205000000000000000000000000009" ; 12
+    string "2005110001115000000000000000000000000009" ; 13
+    string "2222222222222222222222222222222222222222" ; 14
+    string "0000000000000000000000000000000000000000" ; 15
+    string " &We hope your brief detention in the000" ; 16
+    string "000relaxation vault has been a pleasant0" ; 17
+    string "00one.0000000000000000000000000000000000" ; 18
+    string "0000000000000000000000000000000000000000" ; 19
+    string "0000000000000000000000000000000000000000" ; 20
+    string "000&Your specimen has been processed,000" ; 21
+    string "0and we are now ready to begin the000000" ; 22
+    string "000test proper.0000000000000000000000000" ; 23
+    string "0000000000000000000000000000000000000000" ; 24
+    string "0000000000000000000000000000000000000000" ; 25
+    string "0000000000000000000000000000000000000000" ; 26
+    string "0000000000000000000000000000000000000000" ; 27
+    string "00(Use WASD to move.)0000000000000000000" ; 28
+    string "0000000000000000000000000000000000000000" ; 29
+    ;level 2
+    string "----------------------------------------" ; 0
+    string "0000000000000000000000000000000000000000" ; 1
+    string "0000000000000000000000000000000000000000" ; 2
+    string "00&Please proceed into the chamberlock00" ; 3
+    string "0after completing each test.000000000000" ; 4
+    string "0000000000000000000000000000000000000000" ; 5
+    string "2222222222222222222222222222222222222222" ; 6
+    string "2000000000000000000000000000000000000002" ; 7
+    string "2000000000000000000000000000000000000002" ; 8
+    string "2000000000000000000000000000000000000002" ; 9
+    string "2000000000000000000000000000000000000002" ; 10
+    string " %00000000000000000000000111000000000009" ; 11
+    string " 000000000000110000000000121000001000009" ; 12
+    string " 000000100000110000110000111000011100009" ; 13
+    string "2222222222222222222222222222222222222222" ; 14
+    string "0000000000000000000000000000000000000000" ; 15
+    string "0000000000000000000000000000000000000000" ; 16
+    string "000000&First, however, note the000000000" ; 17
+    string "000incandescent particle field across000" ; 18
+    string "0000the exit. 00000000000000000000000000" ; 19
+    string "0000000000000000000000000000000000000000" ; 20
+    string "0000000000000000000000000000000000000000" ; 21
+    string "00&This Aperture Science Material0000000" ; 22
+    string "000Emancipation Grill will vaporize 0000" ; 23
+    string "00any unauthorized equipment that0000000" ; 24
+    string "000passes through it.0000000000000000000" ; 25
+    string "0000000000000000000000000000000000000000" ; 26
+    string "0000000000000000000000000000000000000000" ; 27
+    string "0000000000000000000000000000000000000000" ; 28
+    string "0000000000000000000000000000000000000000" ; 29
+    ;level 3
+    string "----------------------------------------" ; 0
+    string "0000000000000000000000000000000000000000" ; 1
+    string "000&You are doing00000000000000000000000" ; 2
+    string "0000000Very   Well  .0000000000000000000" ; 3
+    string "0000000000000000000000000000000000000000" ; 4
+    string "2222211111111111111111111111111111111111" ; 5
+    string "2000000000000000000000000000000000000001" ; 6
+    string "2000000000000000000000000000000000000001" ; 7
+    string "2000000000000000000000000000000000000001" ; 8
+    string "2000000000000000000000000000000000000002" ; 9
+    string " %00000000000000000000000000000000000009" ; 10
+    string " 000000000000000000000000000000000000009" ; 11
+    string " 000000000000000000000000000000000000009" ; 12
+    string "2222000000000000000000000000000000001112" ; 13
+    string "0002000000000000000000000000000000001000" ; 14
+    string "0002000000000000000000000000000000001000" ; 15
+    string "0002000000000000000000000000000000001000" ; 16
+    string "0002211111111111111111111111111111111000" ; 17
+    string "0000000000000000000000000000000000000000" ; 18
+    string "00&You are in possession of the000000000" ; 19
+    string "00000Aperture Science Handheld0000000000" ; 20
+    string "0000000Portal Device.0000000000000000000" ; 21
+    string "0000000000000000000000000000000000000000" ; 22
+    string "0&With it, you can create your own000000" ; 23
+    string "00000portals.000000000000000000000000000" ; 24
+    string "0000000000000000000000000000000000000000" ; 25
+    string "0(Press IJKL to shoot a portal.)00000000" ; 26
+    string "0(White walls accept portals.)0000000000" ; 27
+    string "0(Use P to change portal colors.)0000000" ; 28
+    string "0(Use F to remove your portals.)00000000" ; 29
+    ;win screen
+    ;level 2
+    string "----------------------------------------" ; 0
+    string "0000000000000000000000000000000000000000" ; 1
+    string "0000000000000000000000000000000000000000" ; 2
+    string "0000000000000000000000000000000000000000" ; 3
+    string "0000000000000000000000000000000000000000" ; 4
+    string "0000000000000000000000000000000000000000" ; 5
+    string "0000000000000000000000000000000000000000" ; 6
+    string "0000000000000000000000000000000000000000" ; 7
+    string "0000000000000000000000000000000000000000" ; 8
+    string "0000000000000000000000000000000000000000" ; 9
+    string "0000000000000000000000000000000000000000" ; 10
+    string "0000000000000000000000000000000000000000" ; 11
+    string "0000000000000000000000000000000000000000" ; 12
+    string "0000000000000000000000000000000000000000" ; 13
+    string "0000000000000000000000000000000000000000" ; 14
+    string "00temporary00000000000000000000000000000" ; 15
+    string "00000placeholder000000000000000000000000" ; 16
+    string "000end of game screen0000000000000000000" ; 17
+    string "000[insert cake ascii art here]000000000" ; 18
+    string "0000000000000000000000000000000000000000" ; 19
+    string "0000000000000000000000000000000000000000" ; 20
+    string "0000000000000000000000000000000000000000" ; 21
+    string "0000000000000000000000000000000000000000" ; 22
+    string "0000000000000000000000000000000000000000" ; 23
+    string "0000000000000000000000000000000000000000" ; 24
+    string "2222222222222222222222222222222222222222" ; 25
+    string "1%00000000000000000000000000000000000001" ; 26
+    string "1000000000000000000000000000000000000001" ; 27
+    string "1000000000000000000000000000000000000001" ; 28
+    string "2222222222222222222222222222222222222222" ; 29
 ;--------------------------------------------------- 
 
 main:
@@ -155,6 +259,10 @@ main:
 
     loadn r0, #10
     store floor_drag, r0    ; floor drag
+
+    loadn r0, #map_data
+	loadn r4, #map_ptr
+    storei r4, r0            ; map pointer
 
     ;print some strings
     loadn r0, gametitle
@@ -175,8 +283,8 @@ main:
 	call draw_map           ;load the map
     call draw_player        ;draw the player
 
-    ; game loop:
-	game_loop:
+; game loop:
+game_loop:
 
     ; --- handle timer countdowns + erasing trail ---
     loadn r0, #trail_active
@@ -237,7 +345,56 @@ skip_draw:
     ; --- 3. input ---
     call handle_input       ;process player input
 
-    jmp game_loop           ;loop
+    ; verificando flag de vitória
+    loadn r4, #win_flag
+    loadi r0, r4
+    loadn r1, #1
+    cmp r0, r1
+    jne game_loop
+
+load_next_map:
+    ; deleta portais existentes
+    call remove_portals
+
+    ; zera a flag de vitória
+    loadn r0, #0
+    storei r4, r0            ; r4 tem endereço da flag
+
+    ; atualiza ponteiro do mapa
+    loadn r4, #map_ptr
+    loadi r0, r4
+    loadn r1, #1230          ; soma o tamanho do mapa no endereço
+    add r0, r0, r1
+    storei r4, r0
+
+    ; zera valores do jogador
+    loadn r1, #0
+    loadn r0, #vel_x_dir
+    storei r0, r1
+    loadn r0, #vel_x_mag
+    storei r0, r1
+    loadn r0, #vel_y_dir
+    storei r0, r1
+    loadn r0, #vel_y_mag
+    storei r0, r1
+    loadn r0, #accum_x_dir
+    storei r0, r1
+    loadn r0, #accum_x_mag
+    storei r0, r1
+    loadn r0, #accum_y_dir
+    storei r0, r1
+    loadn r0, #accum_y_mag
+    storei r0, r1
+
+    ; limpa portais e o player da tela anterior
+    call remove_portals
+    call erase_player
+    ; desenha novo mapa e player
+    call draw_map
+    call draw_player
+
+    ; volta para o loop
+    jmp game_loop
 
 ;----------------------------------------------------------------;
 ;                      funcoes de graficos                       ;
@@ -258,7 +415,8 @@ draw_map:
     push r5                 
     push r6                 
 
-    loadn r0, #map_data     ; r0 = memory pointer for the map data
+    loadn r0, #map_ptr      ; r0 = memory pointer for the map data
+    loadi r0, r0
     loadn r1, #0            ; r1 = screen position (starts at top-left, index 0)
     loadn r2, #1200         ; r2 = total tiles on a 40x30 screen
     loadn r3, #'.'          ; r3 = tile color
@@ -281,10 +439,15 @@ draw_map_loop:
     cmp r6, r4
     jeq next_tile
 
-    ; check if it is player spawn ('X')
-    loadn r4, 'X'
+    ; check if it is player spawn ('%')
+    loadn r4, '%'
     cmp r6, r4              
     jeq spawn_player  
+
+    ; check if it is air ('0')
+    loadn r4, '0'
+    cmp r6, r4              
+    jeq draw_air      
 
     ; check if it is a white wall ('1')
     loadn r4, '1'
@@ -316,16 +479,28 @@ draw_map_loop:
     cmp r6, r4
     jeq draw_death_tile
 
-    ; if it is not a wall, draw an empty space
-    loadn r6, #' '          
-    outchar r6, r1          
-    jmp next_tile           
+    ; check if it is a win tile ('9')
+    loadn r4, '9'
+    cmp r6, r4
+    jeq draw_win_tile
+
+    ; if it is something else, print the ascii character
+    jmp draw_ascii_char
 
 spawn_player:
     mov r7, r1
     loadn r4, #spawn_pos
     storei r4, r1            ; guarda a posiçao inicial pra respawn
+    loadn r5, #' '
+    outchar r5, r1 
+    loadn r4, #'0'
+    storei r0, r4            ; com a posiçao já armazenada, sobreescreve 'X' por '0' (vazio)
     jmp next_tile
+
+draw_air:
+    loadn r5, #' '
+    outchar r5, r1          
+    jmp next_tile  
 
 draw_white_wall:
     loadn r5, #123
@@ -333,7 +508,7 @@ draw_white_wall:
     jmp next_tile
 
 draw_gray_wall:
-    loadn r5, #123
+    loadn r5, #124
     loadn r3, #46592
     add r5, r5, r3
     outchar r5, r1
@@ -360,9 +535,23 @@ draw_hbridge:
     outchar r5, r1
     jmp next_tile
 
+draw_win_tile:
+    loadn r5, #135
+    loadn r3, #8192
+    add r5, r5, r3
+    outchar r5, r1
+    jmp next_tile
+
 draw_death_tile:
     loadn r5, #136
     loadn r3, #58112
+    add r5, r5, r3
+    outchar r5, r1
+    jmp next_tile
+
+draw_ascii_char:
+    mov r5, r6
+    loadn r3, #1536
     add r5, r5, r3
     outchar r5, r1
     jmp next_tile
@@ -741,7 +930,8 @@ accel_jump:
     mul r2, r2, r4          
     add r2, r2, r3          ;r2 = memory offset
 
-    loadn r0, #map_data     
+    loadn r0, #map_ptr
+    loadi r0, r0
     add r0, r0, r2          ; map address + offset
     loadi r1, r0            ; load tile from memory
 
@@ -761,7 +951,7 @@ accel_jump:
     loadn r0, #1             ; jump dir = 1
     loadn r5, #player_jump
     loadi r1, r5             ; jump mag
-    call clamp_mag           ; keep velocity clamped
+    ; call clamp_mag           ; keep velocity clamped
 
     loadn r4, #vel_y_dir     
     storei r4, r0            
@@ -798,7 +988,8 @@ accel_left:
     mul r2, r2, r4          
     add r2, r2, r3          
 
-    loadn r0, #map_data     
+    loadn r0, #map_ptr
+    loadi r0, r0  
     add r0, r0, r2
     loadi r1, r0            ; load tile from memory
 
@@ -823,7 +1014,7 @@ accel_left:
 
     loadn r0, #1            ; dir = 1 (left)
     mov r1, r6              ; mag
-    call clamp_mag          ; keep velocity clamped
+    ; call clamp_mag          ; keep velocity clamped
 
     loadn r4, #vel_x_dir  
     storei r4, r0          
@@ -860,7 +1051,8 @@ accel_right:
     mul r2, r2, r4          
     add r2, r2, r3          
 
-    loadn r0, #map_data     
+    loadn r0, #map_ptr
+    loadi r0, r0
     add r0, r0, r2
     loadi r1, r0            ; load tile from memory
 
@@ -881,11 +1073,11 @@ accel_right:
     loadi r1, r4            ; r1 = current mag
 
     cmp r1, r6
-    jgr skip_accel          ;make sure the player can't slow themselves down by accelerating
+    jgr skip_accel          ; make sure the player can't slow themselves down by accelerating
 
     loadn r0, #0            ; dir = 0 (right)
     mov r1, r6              ; mag
-    call clamp_mag          ; keep velocity clamped
+    ; call clamp_mag          ; keep velocity clamped
     
     loadn r4, #vel_x_dir  
     storei r4, r0          
@@ -914,7 +1106,7 @@ halve_accel:
 boost_accel:
     push r4
 
-    loadn r6, #100
+    loadn r6, #200
 
     pop r4
     rts
@@ -955,7 +1147,23 @@ sa_same_dir:
 
 sa_end:
     pop r4                   
-    rts                      
+    rts 
+
+; clamp_r3: coloca um cap de 100 no r3
+; entrada/saida: r3 = magnitude
+clamp_r3:
+    push r4                  
+    loadn r4, #100            
+    cmp r3, r4               
+    jgr clamp_r3_do       
+    jmp clamp_r3_end
+
+clamp_r3_do:
+    mov r3, r4               
+
+clamp_r3_end:
+    pop r4                   
+    rts                     
 
 ; clamp_mag: coloca um cap de 100 em uma magnitude
 ; entrada/saida: r1 = magnitude
@@ -1019,7 +1227,8 @@ apply_friction:
     mul r2, r2, r4          
     add r2, r2, r3          ; exact memory offset
 
-    loadn r0, #map_data     
+    loadn r0, #map_ptr
+    loadi r0, r0  
     add r0, r0, r2          
     loadi r1, r0            ; tile below the player
 
@@ -1050,8 +1259,11 @@ apply_friction:
     cmp r1, r6
     jle set_zero_speed
 
-    loadn r4, #10            ; subtract mag by 10
-    sub r1, r1, r4
+    ;loadn r4, #10            ; subtract mag by 10
+    ;sub r1, r1, r4
+
+    loadn r4, #2
+    div r1, r1, r4           ; divide mag by 2
 
     storei r0, r1            
 
@@ -1093,7 +1305,8 @@ apply_gravity:
     mul r2, r2, r4          
     add r2, r2, r3          ; exact memory offset
 
-    loadn r0, #map_data     
+    loadn r0, #map_ptr
+    loadi r0, r0
     add r0, r0, r2          
     loadi r1, r0             ; tile below the player
 
@@ -1127,7 +1340,7 @@ do_gravity:
     loadn r2, #0             ; delta dir = 0 (down)
     loadn r3, #10            ; delta mag = 10 (gravity strength per tick)
     call signed_add          ; r0,r1 = new dir,mag
-    call clamp_mag           ; keep velocity clamped
+    ; call clamp_mag           ; keep velocity clamped
 
     loadn r4, #vel_y_dir     
     storei r4, r0            
@@ -1158,7 +1371,8 @@ check_collision:
     push r3
 
     loadn r5, #0            ; default: assume no collision
-    loadn r0, #map_data     ; load the base address of the mao
+    loadn r0, #map_ptr      ; load the base address of the map
+    loadi r0, r0
 
     ;convert screen index to memory index
     ;r6 is the screen index (stride of 40). map it to memory (stride of 41).
@@ -1297,7 +1511,8 @@ tick_physics:
     mul r3, r3, r4          
     add r3, r3, r0          ; r3 = exact memory offset
 
-    loadn r0, #map_data     
+    loadn r0, #map_ptr
+    loadi r0, r0   
     add r0, r0, r3          ; r0 = address of tile below
     loadi r3, r0            ; r3 = tile character below the player
 
@@ -1338,12 +1553,13 @@ start_movement:
     loadi r2, r4             ; r2 = vel_x dir
     loadn r4, #vel_x_mag     
     loadi r3, r4             ; r3 = vel_x mag
+    call clamp_r3
 
     call signed_add          ; r0,r1 = new accum_x dir,mag
 
     loadn r4, #accum_x_dir   
     storei r4, r0            
-    loadn r4, #accum_x_mag   
+    loadn r4, #accum_x_mag
     storei r4, r1            ; save
 
     loadn r4, #99            ; threshold - 1
@@ -1382,6 +1598,10 @@ accum_x_check_collision:
     loadn r3, #'8'               ; orange portal?
     cmp r4, r3
     jeq accum_x_portal_orange
+
+    loadn r3, #'9'
+    cmp r4, r3
+    jeq hit_goal                ; goal tile?
 
     jmp hit_horizontal_wall
 
@@ -1438,6 +1658,7 @@ test_vertical:
     loadi r2, r4                        ; r2 = vel_y dir
     loadn r4, #vel_y_mag          
     loadi r3, r4                        ; r3 = vel_y mag
+    call clamp_r3
 
     call signed_add                     ; r0,r1 = new accum_y dir,mag
 
@@ -1485,6 +1706,10 @@ accum_y_check_collision:
     cmp r4, r3
     jeq accum_y_portal_orange
 
+    loadn r3, #'9'
+    cmp r4, r3
+    jeq hit_goal                ; goal tile?
+
     jmp hit_vertical_wall
 
 accum_y_portal_blue:
@@ -1525,7 +1750,14 @@ hit_vertical_wall:
     loadn r0, #vel_y_mag              
     storei r0, r4                      
     loadn r0, #accum_y_mag               
-    storei r0, r4                         
+    storei r0, r4
+    jmp skip_physics
+
+hit_goal:
+    ; atualiza flag
+    loadn r4, #1
+    loadn r0, #win_flag
+    storei r0, r4             
 
 skip_physics:
 ;aplicar atrito
@@ -1569,7 +1801,8 @@ read_map_tile:
     push r1
 
     call screen_to_map_offset ; r0 = offset
-    loadn r1, #map_data
+    loadn r1, #map_ptr
+    loadi r1, r1
     add r1, r1, r0
     loadi r0, r1
 
@@ -1587,7 +1820,8 @@ write_map_tile:
 
     mov r3, r1               ; guarda o caractere antes de r0 virar offset
     call screen_to_map_offset ; r0 = offset
-    loadn r2, #map_data
+    loadn r2, #map_ptr
+    loadi r2, r2
     add r2, r2, r0
     storei r2, r3
 
@@ -1806,7 +2040,7 @@ try_use_cooldown:
     cmp r1, r2
     jne tuc_block            ; cooldown != 0 -> ainda bloqueado
 
-    loadn r1, #10
+    loadn r1, #25
     storei r0, r1            ; reinicia o cooldown
 
     loadn r5, #1
