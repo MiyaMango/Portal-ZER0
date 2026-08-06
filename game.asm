@@ -109,6 +109,7 @@ win_flag: var #1
 ; '1' = white wall
 ; '2' = gray wall
 ; '3' = orange gel
+; '$' = blue gel
 ; '4' = horizontal bridge
 ; '5' = vertical bridge
 ; '6' = death slop
@@ -649,6 +650,11 @@ draw_map_loop:
     cmp r6, r4              
     jeq draw_orange_gel
 
+    ; check if it is blue gel ('$')
+    loadn r4, '$'
+    cmp r6, r4              
+    jeq draw_blue_gel
+
     ; check if it is horizontal bridge ('4')
     loadn r4, '4'
     cmp r6, r4              
@@ -702,6 +708,13 @@ draw_gray_wall:
 draw_orange_gel:
     loadn r5, #125
     loadn r3, #2816
+    add r5, r5, r3
+    outchar r5, r1
+    jmp next_tile
+
+draw_blue_gel:
+    loadn r5, #125
+    loadn r3, #61440
     add r5, r5, r3
     outchar r5, r1
     jmp next_tile
@@ -1772,7 +1785,11 @@ accum_x_check_collision:
     cmp r5, r3
     jne accum_x_move            ; free -> step succeeds
 
-    loadn r3, #'6'               ; blocked -- was it specifically the death tile?
+    loadn r3, #'$'               ; blocked -- was it specifically the blue gel?
+    cmp r4, r3
+    jeq accum_x_blue_gel
+
+    loadn r3, #'6'               ; death tile?
     cmp r4, r3
     jeq accum_x_death
 
@@ -1821,6 +1838,22 @@ accum_x_move:
 accum_x_death:
     call kill_player            ; erase, wait, respawn (also resets velocity/accum)
     jmp skip_physics            ; state was just reset, no point simulating the rest of this tick
+
+accum_x_blue_gel:
+    loadn r4, #vel_x_mag
+    loadi r5, r4
+    loadn r3, #140             ; if the velocity is smaller than 140, it gets set to 140
+    cmp r5, r3                   ; otherwise, it stays the same
+    jgr bounce_x_blue_gel
+    storei r4, r3
+
+bounce_x_blue_gel:
+    loadn r4, #vel_x_dir        ; inverts direction using xor operation
+    loadi r5, r4
+    loadn r3, #1
+    xor r3, r3, r5
+    storei r4, r3
+    jmp skip_physics
 
 hit_horizontal_wall:
     ;blocked: kill horizontal momentum and its accumulator
@@ -1879,7 +1912,11 @@ accum_y_check_collision:
     cmp r5, r3
     jne accum_y_move            ; free -> step succeeds
 
-    loadn r3, #'6'               ; blocked -- was it specifically the death tile?
+    loadn r3, #'$'               ; blocked -- was it specifically the blue gel tile?
+    cmp r4, r3
+    jeq accum_y_blue_gel
+
+    loadn r3, #'6'               ; death tile?
     cmp r4, r3
     jeq accum_y_death
 
@@ -1927,6 +1964,22 @@ accum_y_move:
 
 accum_y_death:
     call kill_player             ; erase, wait, respawn (also resets velocity/accum)
+    jmp skip_physics
+
+accum_y_blue_gel:
+    loadn r4, #vel_y_mag
+    loadi r5, r4
+    loadn r3, #140             ; if the velocity is smaller than 140, it gets set to 140
+    cmp r5, r3                   ; otherwise, it stays the same
+    jgr bounce_y_blue_gel
+    storei r4, r3
+
+bounce_y_blue_gel:
+    loadn r4, #vel_y_dir        ; inverts direction of movement using xor operation
+    loadi r5, r4
+    loadn r3, #1
+    xor r3, r3, r5
+    storei r4, r3
     jmp skip_physics
 
 hit_vertical_wall:
@@ -2040,6 +2093,10 @@ draw_tile_visual:
     cmp r1, r2
     jeq dtv_orange_gel
 
+    loadn r2, #'$'
+    cmp r1, r2
+    jeq dtv_blue_gel
+
     loadn r2, #'4'
     cmp r1, r2
     jeq dtv_hbridge
@@ -2080,6 +2137,13 @@ dtv_gray_wall:
 dtv_orange_gel:
     loadn r3, #125
     loadn r2, #2816
+    add r3, r3, r2
+    outchar r3, r0
+    jmp dtv_end
+
+dtv_blue_gel:
+    loadn r3, #125
+    loadn r2, #61440
     add r3, r3, r2
     outchar r3, r0
     jmp dtv_end
