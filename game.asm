@@ -889,6 +889,12 @@ draw_map:
     loadn r5, #'.'          ; r5 = visual character to draw
 
 draw_map_loop:
+    nop
+    nop
+    nop
+    nop
+    nop
+    
     cmp r1, r2              ; check if we have drawn 1200 tiles
     jeq draw_map_end        ; if equal, we are done
 
