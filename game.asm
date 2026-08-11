@@ -1077,7 +1077,8 @@ draw_player:
     outchar r1, r4           ; draw at current position
     nop 
     nop
-    nop 
+    nop
+	nop
     nop                      ; nops to avoid bugging out gpu
 
     ; --- Draw Middle Character ---
@@ -1091,7 +1092,8 @@ draw_player:
 
     nop 
     nop
-    nop 
+    nop
+	nop
     nop                      ; nops to avoid bugging out gpu
 
     ; --- Draw Bottom Character ---
@@ -1102,7 +1104,8 @@ draw_player:
 
     nop 
     nop
-    nop 
+    nop
+	nop
     nop                      ; nops to avoid bugging out gpu
 
     pop r5
@@ -1153,6 +1156,12 @@ drawplayer_forceright:
 
     outchar r1, r4           ; draw at current position
 
+	nop
+    nop
+    nop
+    nop
+    nop
+
     ; --- Draw Middle Character ---
     inc r1                   ; get next char
 
@@ -1162,11 +1171,23 @@ drawplayer_forceright:
     add r4, r4, r2           ; move temp position down 1 row by adding 40
     outchar r1, r4           ; draw
 
+	nop
+    nop
+    nop
+    nop
+    nop
+
     ; --- Draw Bottom Character ---
     inc r1                   ; get next char
 
     add r4, r4, r2           ; move temp position down another row
-    outchar r1, r4           ; draw 
+    outchar r1, r4           ; draw
+
+	nop
+    nop
+    nop
+    nop
+    nop
 
     pop r5
     pop r4                   
@@ -1193,6 +1214,12 @@ drawplayer_forceleft:
 
     outchar r1, r4           ; draw at current position
 
+	nop
+    nop
+    nop
+    nop
+    nop
+
     ; --- Draw Middle Character ---
     inc r1                   ; get next char
 
@@ -1202,11 +1229,23 @@ drawplayer_forceleft:
     add r4, r4, r2           ; move temp position down 1 row by adding 40
     outchar r1, r4           ; draw
 
+	nop
+    nop
+    nop
+    nop
+    nop
+
     ; --- Draw Bottom Character ---
     inc r1                   ; get next char
 
     add r4, r4, r2           ; move temp position down another row
     outchar r1, r4           ; draw 
+
+	nop
+    nop
+    nop
+    nop
+    nop
 
     pop r5
     pop r4                   
@@ -1230,7 +1269,8 @@ erase_player:
     outchar r1, r4           
     nop 
     nop
-    nop 
+    nop
+	nop
     nop                      ; nops to avoid bugging out gpu
 
     ; --- Erase Middle ---
@@ -1239,6 +1279,7 @@ erase_player:
     nop 
     nop
     nop 
+	nop
     nop                      ; nops to avoid bugging out gpu
 
     ; --- Erase Bottom ---
@@ -1246,7 +1287,8 @@ erase_player:
     outchar r1, r4          
     nop 
     nop
-    nop 
+    nop
+	nop
     nop                      ; nops to avoid bugging out gpu
 
     pop r4                   
@@ -1270,6 +1312,11 @@ print_string:
 
         add r5, r5, r2; add cor
     	outchar r5, r1; printa 1 char
+		nop
+    	nop
+    	nop
+   	 	nop
+    	nop
 
     	inc r1; incrementa o cursor
     	inc r0; incrementa o endereco na string
@@ -2502,6 +2549,11 @@ dtv_orange_portal:
     outchar r3, r0
 
 dtv_end:
+	nop
+    nop
+    nop
+    nop
+    nop
     pop r3
     pop r2
     pop r1
@@ -3311,6 +3363,11 @@ drt_color_done:
 
 drt_loop:
     outchar r3, r0
+	nop
+    nop
+    nop
+    nop
+    nop
 
     cmp r0, r1
     jeq drt_end             ; ja desenhamos a celula final
