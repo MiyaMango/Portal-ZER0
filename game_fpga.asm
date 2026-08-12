@@ -760,7 +760,7 @@ main:
 
     loadn r0, bluestring
     loadn r1, #31
-    loadn r2, #51200
+    loadn r2, #14080 
     call print_string
 
 	call draw_map           ;load the map
@@ -1008,56 +1008,56 @@ draw_white_wall:
 
 draw_gray_wall:
     loadn r5, #124
-    loadn r3, #46592
+    loadn r3, #18688 
     add r5, r5, r3
     outchar r5, r1
     jmp next_tile
     
 draw_orange_gel:
     loadn r5, #125
-    loadn r3, #2816
+    loadn r3, #62464 
     add r5, r5, r3
     outchar r5, r1
     jmp next_tile
 
 draw_blue_gel:
     loadn r5, #125
-    loadn r3, #61440
+    loadn r3, #3840 
     add r5, r5, r3
     outchar r5, r1
     jmp next_tile
 
 draw_vbridge:
     loadn r5, #133
-    loadn r3, #43008
+    loadn r3, #22272 
     add r5, r5, r3
     outchar r5, r1
     jmp next_tile
 
 draw_hbridge:
     loadn r5, #134
-    loadn r3, #43008
+    loadn r3, #22272 
     add r5, r5, r3
     outchar r5, r1
     jmp next_tile
 
 draw_win_tile:
     loadn r5, #135
-    loadn r3, #8192
+    loadn r3, #57088 
     add r5, r5, r3
     outchar r5, r1
     jmp next_tile
 
 draw_death_tile:
     loadn r5, #136
-    loadn r3, #58112
+    loadn r3, #7168 
     add r5, r5, r3
     outchar r5, r1
     jmp next_tile
 
 draw_ascii_char:
     mov r5, r6
-    loadn r3, #1536
+    loadn r3, #63744 
     add r5, r5, r3
     outchar r5, r1
     jmp next_tile
@@ -1095,7 +1095,7 @@ draw_player:
 
     call get_char_from_facing_dir           ; get first char (127 for facing right, 130 for facing left)
 
-    loadn r5, #64512             ; apply color
+    loadn r5, #768             ; apply color
     add r1, r1, r5
 
     outchar r1, r4           ; draw at current position
@@ -1108,7 +1108,7 @@ draw_player:
     ; --- Draw Middle Character ---
     inc r1                   ; get next char
 
-    loadn r5, #2560          ; apply color
+    loadn r5, #62720           ; apply color
     add r1, r1, r5
 
     add r4, r4, r2           ; move temp position down 1 row by adding 40
@@ -1192,7 +1192,7 @@ drawplayer_forceright:
     ; --- Draw Middle Character ---
     inc r1                   ; get next char
 
-    loadn r5, #2560          ; apply color
+    loadn r5, #62720           ; apply color
     add r1, r1, r5
 
     add r4, r4, r2           ; move temp position down 1 row by adding 40
@@ -1252,7 +1252,7 @@ drawplayer_forceleft:
     ; --- Draw Middle Character ---
     inc r1                   ; get next char
 
-    loadn r5, #2560          ; apply color
+    loadn r5, #62720           ; apply color
     add r1, r1, r5
 
     add r4, r4, r2           ; move temp position down 1 row by adding 40
@@ -1745,7 +1745,7 @@ sa_end:
 ; clamp_r3: coloca um cap de 100 no r3
 ; entrada/saida: r3 = magnitude
 clamp_r3:
-    push r4                  
+    push r4
     loadn r4, #100            
     cmp r3, r4               
     jgr clamp_r3_do       
@@ -2530,56 +2530,56 @@ dtv_white_wall:
 
 dtv_gray_wall:
     loadn r3, #123
-    loadn r2, #46592
+    loadn r2, #18688 
     add r3, r3, r2
     outchar r3, r0
     jmp dtv_end
 
 dtv_orange_gel:
     loadn r3, #125
-    loadn r2, #2816
+    loadn r2, #62464 
     add r3, r3, r2
     outchar r3, r0
     jmp dtv_end
 
 dtv_blue_gel:
     loadn r3, #125
-    loadn r2, #61440
+    loadn r2, #3840 
     add r3, r3, r2
     outchar r3, r0
     jmp dtv_end
 
 dtv_hbridge:
     loadn r3, #134
-    loadn r2, #43008
+    loadn r2, #22272 
     add r3, r3, r2
     outchar r3, r0
     jmp dtv_end
 
 dtv_vbridge:
     loadn r3, #133
-    loadn r2, #43008
+    loadn r2, #22272 
     add r3, r3, r2
     outchar r3, r0
     jmp dtv_end
 
 dtv_death_tile:
     loadn r3, #136
-    loadn r2, #58112
+    loadn r2, #7168 
     add r3, r3, r2
     outchar r3, r0
     jmp dtv_end
 
 dtv_blue_portal:
     loadn r3, #123
-    loadn r2, #51200
+    loadn r2, #14080 
     add r3, r3, r2
     outchar r3, r0
     jmp dtv_end
 
 dtv_orange_portal:
     loadn r3, #123
-    loadn r2, #3840
+    loadn r2, #61440
     add r3, r3, r2
     outchar r3, r0
 
@@ -2664,7 +2664,7 @@ toggle_portal_color:
 
     loadn r1, #31
     loadn r0, orangestring
-    loadn r2, #3840
+    loadn r2, #61440 
     call print_string
 
 toggle_finish:
@@ -2675,7 +2675,7 @@ toggle_finish:
 draw_bluestring:
     loadn r1, #31
     loadn r0, bluestring
-    loadn r2, #51200
+    loadn r2, #14080 
     call print_string
 
     jmp toggle_finish
@@ -3388,11 +3388,11 @@ drt_have_char:
     cmp r5, r4
     jeq drt_color_blue
 
-    loadn r4, #3840           ; cor do portal laranja
+    loadn r4, #61440            ; cor do portal laranja
     jmp drt_color_done
 
 drt_color_blue:
-    loadn r4, #51200          ; cor do portal azul
+    loadn r4, #14080           ; cor do portal azul
 
 drt_color_done:
     add r3, r3, r4
