@@ -4,7 +4,7 @@
 ;r7 -> posição do personagem                                   ;
 ;--------------------------------------------------------------;
 
-;-------- TABELA DE CORES -------;
+;- TABELA DE CORES SIMULADOR ----;
 ; 0      branco                  ;	
 ; 64512  100% azul               ;
 ; 58112  100% verde              ;
@@ -19,7 +19,25 @@
 ; 7168   rosa choque             ;
 ; 1536   glados yellow           ;
 ; 8192   almost white            ;
-;--------------------------------;						
+;--------------------------------;
+
+; a fpga tem as cores invertidas
+;- TABELA DE CORES FPGA ---------;
+; 0      branco                  ;	
+; 768    100% azul               ;
+; 7168   100% verde              ;
+; 57344  100% vermelho           ;
+; 62464  gel laranja             ;
+; 3840   gel azul                ;
+; 62720  laranja roupa chell     ;
+; 14080  portal azul             ;
+; 61440  portal laranja          ;
+; 22272  hardlight bridge        ;
+; 18688  gray tile               ;
+; 58112  rosa choque             ;
+; 63744  glados yellow           ;
+; 57088  almost white            ;
+;--------------------------------;
 
 ;---- strings --------------------------------------
 errstring : string "error string"
@@ -732,7 +750,7 @@ main:
     ;print some strings
     loadn r0, gametitle
     loadn r1, #1
-    loadn r2, #0
+    ;loadn r2, #0
     call print_string
 
     loadn r0, portalstring
@@ -750,6 +768,10 @@ main:
 
 ; game loop:
 game_loop:
+    
+    ;wait 20 ms
+    ;loadn r0, #20
+    ;pause r0
 
     ; --- handle timer countdowns + erasing trail ---
     loadn r0, #trail_active
@@ -889,6 +911,7 @@ draw_map:
     loadn r5, #'.'          ; r5 = visual character to draw
 
 draw_map_loop:
+  
     nop
     nop
     nop
@@ -1069,16 +1092,17 @@ draw_player:
     mov r4, r7               ; copy player's position (r7) into r4 so we don't alter r7
 
     ; --- Draw Top Character ---
+
     call get_char_from_facing_dir           ; get first char (127 for facing right, 130 for facing left)
 
-    loadn r5, #0             ; apply color
+    loadn r5, #64512             ; apply color
     add r1, r1, r5
 
     outchar r1, r4           ; draw at current position
-    nop 
     nop
     nop
-	nop
+    nop
+    nop
     nop                      ; nops to avoid bugging out gpu
 
     ; --- Draw Middle Character ---
@@ -1090,10 +1114,11 @@ draw_player:
     add r4, r4, r2           ; move temp position down 1 row by adding 40
     outchar r1, r4           ; draw
 
-    nop 
+    
     nop
     nop
-	nop
+    nop
+    nop
     nop                      ; nops to avoid bugging out gpu
 
     ; --- Draw Bottom Character ---
@@ -1102,7 +1127,8 @@ draw_player:
     add r4, r4, r2           ; move temp position down another row
     outchar r1, r4           ; draw 
 
-    nop 
+    
+    nop
     nop
     nop
 	nop
@@ -1156,7 +1182,8 @@ drawplayer_forceright:
 
     outchar r1, r4           ; draw at current position
 
-	nop
+	
+    nop
     nop
     nop
     nop
@@ -1171,7 +1198,8 @@ drawplayer_forceright:
     add r4, r4, r2           ; move temp position down 1 row by adding 40
     outchar r1, r4           ; draw
 
-	nop
+	
+    nop
     nop
     nop
     nop
@@ -1183,7 +1211,7 @@ drawplayer_forceright:
     add r4, r4, r2           ; move temp position down another row
     outchar r1, r4           ; draw
 
-	nop
+    nop
     nop
     nop
     nop
@@ -1214,7 +1242,8 @@ drawplayer_forceleft:
 
     outchar r1, r4           ; draw at current position
 
-	nop
+	
+    nop
     nop
     nop
     nop
@@ -1229,7 +1258,8 @@ drawplayer_forceleft:
     add r4, r4, r2           ; move temp position down 1 row by adding 40
     outchar r1, r4           ; draw
 
-	nop
+	
+    nop
     nop
     nop
     nop
@@ -1241,7 +1271,8 @@ drawplayer_forceleft:
     add r4, r4, r2           ; move temp position down another row
     outchar r1, r4           ; draw 
 
-	nop
+	
+    nop
     nop
     nop
     nop
@@ -1265,27 +1296,30 @@ erase_player:
     loadn r2, #40            
     mov r4, r7               ; start erasing at the player's position
 
-    ; --- Erase Top ---        
+    ; --- Erase Top ---
     outchar r1, r4           
-    nop 
+    
     nop
     nop
-	nop
+    nop
+    nop
     nop                      ; nops to avoid bugging out gpu
 
     ; --- Erase Middle ---
     add r4, r4, r2           
     outchar r1, r4           
-    nop 
+   
     nop
-    nop 
-	nop
+    nop
+    nop
+    nop
     nop                      ; nops to avoid bugging out gpu
 
     ; --- Erase Bottom ---
     add r4, r4, r2           
     outchar r1, r4          
-    nop 
+    
+    nop
     nop
     nop
 	nop
@@ -1312,8 +1346,9 @@ print_string:
 
         add r5, r5, r2; add cor
     	outchar r5, r1; printa 1 char
-		nop
-    	nop
+		
+        nop
+        nop
     	nop
    	 	nop
     	nop
@@ -2549,7 +2584,8 @@ dtv_orange_portal:
     outchar r3, r0
 
 dtv_end:
-	nop
+	
+    nop
     nop
     nop
     nop
@@ -3363,7 +3399,8 @@ drt_color_done:
 
 drt_loop:
     outchar r3, r0
-	nop
+	
+    nop
     nop
     nop
     nop
@@ -3432,6 +3469,13 @@ ert_loop:
     call read_map_tile      ; r0 = caractere real do mapa nessa celula
     mov r1, r0
     mov r0, r4
+
+ 
+    nop
+    nop
+    nop
+    nop
+    nop
     call draw_tile_visual   ; redesenha o tile de verdade, apagando o raycast
 
     cmp r0, r2
